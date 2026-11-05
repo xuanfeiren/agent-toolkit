@@ -5,7 +5,7 @@ Skills, protocols, and templates I use when running coding and research agents. 
 | Directory | What it is |
 |---|---|
 | [exp-dashboard/](exp-dashboard/) | Skill and single-file HTML dashboard for live experiment campaigns: plan, progress, results, ops. [Demo](exp-dashboard/docs/demo.html). |
-| [report-protocol/](report-protocol/) | A 30-minute reporting contract: one table for the whole wave (results or ETAs), then defaults applied versus questions that still need you. |
+| [report-protocol/](report-protocol/) | A 30-minute reporting contract: one table for the whole wave (results or ETAs), then defaults applied versus questions that still need you. Each report is self-contained, so you only read the latest. |
 
 ## Using a skill
 

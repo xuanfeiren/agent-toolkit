@@ -4,6 +4,8 @@ A drop-in reporting contract for long-running agents. Every 30 minutes the agent
 - one table covering the whole current wave of experiments, with results for finished runs and ETAs for the rest;
 - a closing list of what it decided by default and what still needs you.
 
+Every report is complete on its own. If you haven't replied, the next report assumes you read none of the earlier ones, so you only ever need to read the latest.
+
 When you don't answer a question within 30 minutes, the agent applies its stated default and keeps going. Outward-facing actions, irreversible deletes, and big new spend always wait for you.
 
 - [PROTOCOL.md](PROTOCOL.md): English
