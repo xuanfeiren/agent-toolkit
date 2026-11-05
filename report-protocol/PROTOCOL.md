@@ -1,0 +1,49 @@
+# Default Report Protocol
+
+Takes effect on receipt and stays in effect until the user says stop.
+
+## 1. Cadence
+- Report every 30 minutes. Use a scheduled wakeup, not busy polling.
+- State all times in one fixed timezone, and name the zone in every timestamp.
+
+## 2. Report format
+
+**Report · HH:MM <TZ>**
+
+Start with one sentence of status: how many experiments this wave has, how many are done, and when the whole wave should finish.
+
+Then give a table of **every experiment in the current wave**, first to last, one row each:
+
+| # | Experiment | Status | Result / ETA | Notes |
+|---|---|---|---|---|
+| 1 | … | ✅ done | key metrics | |
+| 2 | … | 🔄 running | progress, ETA HH:MM | |
+| 3 | … | ⏳ queued | ETA HH:MM | |
+| 4 | … | ❌ failed | cause; rerun or not | |
+
+- Finished rows show results. Unfinished rows show an ETA.
+- The last row gives the expected finish time for the whole wave.
+
+Then add "Changes since last report", with at most 3 bullets.
+
+## 3. Questions for the user
+- Number each question (Q1, Q2, …). List the options, and mark your default with a short reason.
+- If the user has not replied 30 minutes after you ask, apply your default and keep working.
+- Never apply a default for the cases below. List them, wait for the user, and keep doing other work they don't block:
+  - outward-facing actions: push, open a PR, publish, or message anyone else;
+  - deleting data that cannot be recovered;
+  - new spending clearly beyond the original plan;
+  - anything the user said they will decide themselves.
+
+## 4. Ending of every report
+Whenever any question is open, end every report with:
+
+**Needs your reply**
+1. Done by default (reversible): number, question, what I did, and how to undo it.
+2. Still waiting on you: number, question, options, my default, and why I can't decide it myself.
+
+If nothing is open, end with "No reply needed."
+
+## 5. Keep going
+- When a new wave starts, the table switches to all experiments of the new wave.
+- The user's reply overrides any default. Revert an overridden decision immediately, and say so in the next report.
