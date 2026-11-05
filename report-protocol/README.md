@@ -6,7 +6,7 @@ A drop-in reporting contract for long-running agents. Every 30 minutes the agent
 
 Every report is complete on its own. If you haven't replied, the next report assumes you read none of the earlier ones, so you only ever need to read the latest.
 
-When you don't answer a question within 30 minutes, the agent applies its stated default and keeps going. Outward-facing actions, irreversible deletes, and big new spend always wait for you.
+When you don't answer a question within 30 minutes, the agent applies its stated default and keeps going. Outward-facing actions and irreversible deletes always wait for you.
 
 - [PROTOCOL.md](PROTOCOL.md): English
 - [PROTOCOL.zh.md](PROTOCOL.zh.md): 中文
@@ -19,6 +19,4 @@ Put the file where the agent can read it, then tell the agent:
 
 To change the rules for every agent, edit the file and ask the agents to re-read it.
 
-Adjust two things to taste:
-- **Timezone:** the English version leaves the zone open; the Chinese version uses US Central (CST).
-- **Spending threshold:** "clearly beyond the original plan" can become a fixed amount, such as $1,000.
+Timezone: the English version leaves the zone open; the Chinese version uses US Central (CST).
