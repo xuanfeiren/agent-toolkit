@@ -36,7 +36,7 @@ Then add "Changes since your last reply": list every change in that period, most
 - Number each question (Q1, Q2, …). List the options, and mark your default with a short reason.
 - If the user has not replied 30 minutes after you ask, apply your default and keep working.
 - Never apply a default for the cases below. List them, wait for the user, and keep doing other work they don't block:
-  - outward-facing actions: push, open a PR, publish, or message anyone else;
+  - outward-facing actions: push, open a PR, publish, or message other people. Messages between the user's own agents are not outward-facing and need no approval;
   - deleting data that cannot be recovered;
   - new spending clearly beyond the original plan;
   - anything the user said they will decide themselves.
