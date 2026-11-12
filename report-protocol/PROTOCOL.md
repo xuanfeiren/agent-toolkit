@@ -51,6 +51,27 @@ After the user replies, drop the items they handled from the next report and kee
 
 If nothing is open, end with "No reply needed."
 
-## 6. Keep going
+If there are pinned answers (section 6), put them after this block, as the very last part of the report.
+
+## 6. Pin answers until the user confirms seeing them
+When the user sends a message between reports with a specific question, the agent answers it on the spot, but the user may already have left and never seen the answer. So:
+
+- Pin such answers to the very end of **every** following report (after "Needs your reply" or "No reply needed") until the user confirms seeing them.
+- What counts as confirmation: the user says "seen" (confirms all), or "A1 seen" (confirms just that one), or their next message clearly builds on the answer (a follow-up question, or an instruction based on it). An unrelated message from the user does not count.
+- The agent decides which answers to pin. The test: **if the user never saw this answer, would they miss information they wanted, or make a wrong decision because of it?** If yes, pin it.
+  - Pin: a specific fact or number ("is X done?", "what did Y score?"); a request for a cause, analysis, judgment, or recommendation; an instruction whose outcome differs from what the user expected (couldn't do it, did it differently, found a problem).
+  - Don't pin: greetings and pleasantries ("hi", "thanks", "ok"); a simple instruction that was carried out and already shows in the table or "Changes"; an answer that is itself an open question — that goes under "Needs your reply" in section 5, not listed twice.
+
+Format:
+
+**Your earlier questions (reply "seen" once read)**
+- **A1** · HH:MM <TZ> You asked: <one-line restatement of the question>
+  Answer: <full answer>
+
+- Number each item (A1, A2, …) and give the time asked, the question, and the full answer. Section 2 applies: never write "see above" or "same as my earlier reply". For long answers, give the full conclusion and key evidence, and point to a file for details.
+- If things change after the answer was given (new data overturns the conclusion, an ETA moves), rewrite the pinned item with the current answer and note "(updated; originally said …)".
+- After the user confirms, drop those items from the next report.
+
+## 7. Keep going
 - When a new wave starts, the table switches to all experiments of the new wave.
 - The user's reply overrides any default. Revert an overridden decision immediately, and say so in the next report.

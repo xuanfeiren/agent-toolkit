@@ -6,6 +6,8 @@ A drop-in reporting contract for long-running agents. Every 30 minutes the agent
 
 Every report is complete on its own. If you haven't replied, the next report assumes you read none of the earlier ones, so you only ever need to read the latest.
 
+If you ask something between reports and then go quiet, the agent pins its answer to the bottom of every report until you say you've seen it. Small talk like "hi" doesn't get pinned.
+
 When you don't answer a question within 30 minutes, the agent applies its stated default and keeps going. Outward-facing actions and irreversible deletes always wait for you.
 
 - [PROTOCOL.md](PROTOCOL.md): English
