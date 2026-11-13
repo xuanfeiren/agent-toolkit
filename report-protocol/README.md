@@ -1,7 +1,7 @@
 # report-protocol
 
 A drop-in reporting contract for long-running agents. Every 30 minutes the agent posts:
-- one table covering the whole current wave of experiments, with results for finished runs and ETAs for the rest;
+- one table covering everything since your last reply plus everything still planned, with results for finished runs and ETAs for the rest;
 - a closing list of what it decided by default and what still needs you.
 
 Every report is complete on its own. If you haven't replied, the next report assumes you read none of the earlier ones, so you only ever need to read the latest.

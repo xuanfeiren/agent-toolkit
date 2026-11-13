@@ -16,19 +16,21 @@ Takes effect on receipt and stays in effect until the user says stop.
 
 **Report · HH:MM <TZ>**
 
-Start with one sentence of status: how many experiments this wave has, how many are done, and when the whole wave should finish.
+Start with one sentence of status: since your last reply, how many experiments finished, how many are running, how many more are planned, and when everything should be done.
 
-Then give a table of **every experiment in the current wave**, first to last, one row each:
+Then give one table covering three parts: what finished since your last reply, what is running now, and what is planned next. List them top to bottom in that order, one experiment per row:
 
 | # | Experiment | Status | Result / ETA | Notes |
 |---|---|---|---|---|
 | 1 | … | ✅ done | key metrics | |
-| 2 | … | 🔄 running | progress, ETA HH:MM | |
-| 3 | … | ⏳ queued | ETA HH:MM | |
-| 4 | … | ❌ failed | cause; rerun or not | |
+| 2 | … | ❌ failed | cause; rerun or not | |
+| 3 | … | 🔄 running | progress, ETA HH:MM | |
+| 4 | … | ⏳ planned | expected start and finish | |
 
-- Finished rows show results. Unfinished rows show an ETA.
-- The last row gives the expected finish time for the whole wave.
+- Finished rows (failures included) go in order of finish time and show results. Unfinished rows show an ETA, planned ones included.
+- Drop anything that finished before your last reply. Anything that was running then and is still not done stays.
+- Many runs from the same batch with the same config may share one row, showing done/total.
+- The last row gives the expected finish time for all planned work.
 
 Then add "Changes since your last reply": list every change in that period, most important first.
 
@@ -73,5 +75,5 @@ Format:
 - After the user confirms, drop those items from the next report.
 
 ## 7. Keep going
-- When a new wave starts, the table switches to all experiments of the new wave.
+- When the plan changes (items added, dropped, or reordered), update the table and ETAs, and note it under "Changes since your last reply".
 - The user's reply overrides any default. Revert an overridden decision immediately, and say so in the next report.
