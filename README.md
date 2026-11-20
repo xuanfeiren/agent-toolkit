@@ -14,7 +14,13 @@ Skill directories contain a `SKILL.md`. Copy or link the whole directory into th
 
 ## Using the plugin
 
-`lessonshare/` is a Claude Code plugin, not a skill directory. Start Claude Code with `claude --plugin-dir /path/to/agent-toolkit/lessonshare`, then run `/lessonshare:solve <task>`. See its [README](lessonshare/README.md).
+`lessonshare/` is a Claude Code plugin, not a skill directory. This repository is also a plugin marketplace, so inside Claude Code you can install it with:
+
+```
+/plugin install lessonshare --marketplace xuanfeiren/agent-toolkit
+```
+
+Then run `/lessonshare:solve <task>`. From a local checkout, start Claude Code with `claude --plugin-dir /path/to/agent-toolkit/lessonshare` instead. See its [README](lessonshare/README.md).
 
 ## License
 

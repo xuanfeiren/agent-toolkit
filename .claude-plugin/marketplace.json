@@ -1,0 +1,14 @@
+{
+  "name": "agent-toolkit",
+  "owner": { "name": "xuanfeiren" },
+  "metadata": { "description": "Skills, protocols and plugins for running coding and research agents." },
+  "plugins": [
+    {
+      "name": "lessonshare",
+      "source": "./lessonshare",
+      "description": "N isolated parallel agents work one open task and exchange short, verified lessons through a shared board, with a live lesson-board pane inside Claude Code.",
+      "category": "productivity",
+      "keywords": ["multi-agent", "workflow", "subagents", "research"]
+    }
+  ]
+}

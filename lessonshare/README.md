@@ -5,6 +5,11 @@ alone, in private workspaces: they cannot read each other's work. The only thing
 prose *lessons*. A lesson reaches the rest of the team only after it has been **verified**, and it may never
 contain its author's result, only the insight.
 
+![Claude Code running a lessonshare team: the lesson board pane on the right, the agents below](docs/screenshot.png)
+
+*Three writers and a verifier on the demo task. The pane on the right is the live lesson board; the list below
+is Claude Code's own workflow view (select the workflow in the footer and press Enter).*
+
 It works for any task, not only code:
 
 | The task has… | Lessons are verified by | Results are compared by | Start with |
@@ -30,14 +35,23 @@ lessonshare <command>      CLI: runs, board, report, eval, calibrate
 
 ## Install
 
-Local checkout, for one session:
+From the marketplace in this repository, inside Claude Code (2.1.275 or later):
 
-```sh
-claude --plugin-dir /path/to/lessonshare
+```
+/plugin install lessonshare --marketplace xuanfeiren/agent-toolkit
 ```
 
-Or add the directory to a plugin marketplace and install it the usual way. Check it with
-`claude plugin validate /path/to/lessonshare`. After editing the plugin in a running session: `/reload-plugins`.
+or in two steps: `/plugin marketplace add xuanfeiren/agent-toolkit`, then `/plugin install lessonshare@agent-toolkit`.
+Update later with `/plugin marketplace update agent-toolkit`.
+
+From a local checkout, for one session:
+
+```sh
+claude --plugin-dir /path/to/agent-toolkit/lessonshare
+```
+
+Check a checkout with `claude plugin validate /path/to/lessonshare`. After editing the plugin in a running
+session: `/reload-plugins`.
 
 ## Demo in one command
 
