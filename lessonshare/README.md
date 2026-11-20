@@ -39,6 +39,23 @@ claude --plugin-dir /path/to/lessonshare
 Or add the directory to a plugin marketplace and install it the usual way. Check it with
 `claude plugin validate /path/to/lessonshare`. After editing the plugin in a running session: `/reload-plugins`.
 
+## Demo in one command
+
+```sh
+/path/to/lessonshare/examples/demo.sh open              # interactive: Claude Code opens with the launch prompt
+/path/to/lessonshare/examples/demo.sh open --headless   # claude -p, prints the result as JSON
+/path/to/lessonshare/examples/demo.sh open --sdk        # Claude Agent SDK (run `npm install` in examples/sdk first)
+```
+
+`open` is the divisor-chain puzzle (writers, verifier, judge); `toy` is the evaluator task. Options:
+`-n 3 --minutes 10 --dir ~/lessonshare-demo-open`. The script creates the project outside the plugin directory
+and prints the command that follows the lesson board from a second terminal. In interactive mode you approve
+`init_run` once; the workflow then shows up under `/workflows`.
+
+To drive it from your own program, copy `examples/sdk/run.mjs`: it loads the plugin with
+`plugins: [{ type: 'local', path }]`, allows `Workflow` and `init_run`, and sets
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` so the session outlives the 10-minute headless limit.
+
 ## Quick start: an open task (no evaluator)
 
 ```sh
