@@ -1,0 +1,4 @@
+{"hooks":{"PreToolUse":[
+ {"matcher":"mcp__plugin_lessonshare_board__.*","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/server/hook.js","stamp"],"timeout":10}]},
+ {"matcher":"Read|Write|Edit|Grep|Glob","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/server/hook.js","guard"],"timeout":10}]}
+]}}

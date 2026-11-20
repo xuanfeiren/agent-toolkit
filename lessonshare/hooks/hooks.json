@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__plugin_lessonshare_board__.*",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/dist/hook-stamp.js"], "timeout": 10 }
+        ]
+      },
+      {
+        "matcher": "Read|Write|Edit|Grep|Glob",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/dist/hook-guard.js"], "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

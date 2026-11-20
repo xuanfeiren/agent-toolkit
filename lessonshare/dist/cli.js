@@ -1,0 +1,2131 @@
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// src/cli/cli.ts
+var fs6 = __toESM(require("node:fs"));
+var os = __toESM(require("node:os"));
+var path6 = __toESM(require("node:path"));
+
+// src/core/config.ts
+var fs2 = __toESM(require("node:fs"));
+var path2 = __toESM(require("node:path"));
+
+// src/core/util.ts
+var fs = __toESM(require("node:fs"));
+var path = __toESM(require("node:path"));
+var crypto = __toESM(require("node:crypto"));
+var HostError = class extends Error {
+  constructor(code, message, extra = {}) {
+    super(message);
+    this.code = code;
+    this.extra = extra;
+  }
+  code;
+  extra;
+};
+var ArgError = class extends Error {
+};
+var realClock = { now: () => Date.now() };
+function isInside(root, p) {
+  const rel = path.relative(root, p);
+  return rel === "" || !rel.startsWith(".." + path.sep) && rel !== ".." && !path.isAbsolute(rel);
+}
+function realResolve(p) {
+  let cur = path.resolve(p);
+  const tail = [];
+  for (; ; ) {
+    try {
+      return path.join(fs.realpathSync(cur), ...tail);
+    } catch {
+      const parent = path.dirname(cur);
+      if (parent === cur) return path.resolve(p);
+      tail.unshift(path.basename(cur));
+      cur = parent;
+    }
+  }
+}
+function resolveInside(root, rel, what) {
+  if (typeof rel !== "string" || rel === "") throw new HostError("bad_path", `${what}: empty path`);
+  const abs = realResolve(path.resolve(root, rel));
+  if (!isInside(realResolve(root), abs)) throw new HostError("path_escape", `${what}: "${rel}" resolves outside the project directory`);
+  return abs;
+}
+function globToRegex(glob) {
+  let re = "";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*") {
+      if (glob[i + 1] === "*") {
+        i++;
+        if (glob[i + 1] === "/") {
+          i++;
+          re += "(?:.*/)?";
+        } else re += ".*";
+      } else re += "[^/]*";
+    } else if (c === "?") re += "[^/]";
+    else re += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp("^" + re + "$");
+}
+function listFiles(dir) {
+  const out = [];
+  const walk = (d, prefix) => {
+    let ents;
+    try {
+      ents = fs.readdirSync(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of ents) {
+      const rel = prefix ? prefix + "/" + e.name : e.name;
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) walk(path.join(d, e.name), rel);
+      else if (e.isFile()) out.push(rel);
+    }
+  };
+  walk(dir, "");
+  return out.sort();
+}
+function matchFiles(dir, globs) {
+  const res = globs.map(globToRegex);
+  return listFiles(dir).filter((f) => res.some((r) => r.test(f)));
+}
+function readBlobs(dir, rels) {
+  return rels.map((rel) => ({ rel, data: fs.readFileSync(path.join(dir, rel)) }));
+}
+function hashBlobs(blobs) {
+  const h = crypto.createHash("sha256");
+  for (const b of blobs) {
+    h.update(b.rel);
+    h.update("\0");
+    h.update(String(b.data.length));
+    h.update("\0");
+    h.update(b.data);
+  }
+  return h.digest("hex");
+}
+function hashDir(dir) {
+  return hashBlobs(readBlobs(dir, listFiles(dir)));
+}
+function writeBlobs(dir, blobs) {
+  fs.mkdirSync(dir, { recursive: true });
+  for (const b of blobs) {
+    const dst = path.join(dir, b.rel);
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.writeFileSync(dst, b.data);
+  }
+}
+function copyDir(src, dst) {
+  writeBlobs(dst, readBlobs(src, listFiles(src)));
+}
+function appendLineSync(file, obj) {
+  const fd = fs.openSync(file, "a");
+  try {
+    fs.writeSync(fd, JSON.stringify(obj) + "\n");
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+function readJsonl(file) {
+  let txt;
+  try {
+    txt = fs.readFileSync(file, "utf8");
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const line of txt.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line));
+    } catch {
+    }
+  }
+  return out;
+}
+function writeJson(file, obj) {
+  const tmp = file + ".tmp" + process.pid;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + "\n");
+  fs.renameSync(tmp, file);
+}
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+function fmtNum(x) {
+  if (!Number.isFinite(x)) return String(x);
+  if (Number.isInteger(x) && Math.abs(x) < 1e15) return String(x);
+  return String(Number(x.toPrecision(4)));
+}
+function median(xs) {
+  const s = [...xs].sort((a, b) => a - b);
+  const n = s.length;
+  if (!n) return NaN;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+function round(x, d = 1) {
+  const k = 10 ** d;
+  return Math.round(x * k) / k;
+}
+function isObj(x) {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+function deepMerge(base, over) {
+  if (!isObj(over)) return base;
+  const out = isObj(base) ? { ...base } : {};
+  for (const [k, v] of Object.entries(over)) {
+    if (v === void 0) continue;
+    out[k] = isObj(v) && isObj(out[k]) ? deepMerge(out[k], v) : v;
+  }
+  return out;
+}
+var Deferred = class {
+  promise;
+  resolve;
+  done = false;
+  constructor() {
+    this.promise = new Promise((r) => {
+      this.resolve = (v) => {
+        this.done = true;
+        r(v);
+      };
+    });
+  }
+};
+
+// src/core/config.ts
+var MODES = {
+  independent: { board: { enabled: false }, push: { policy: "none" }, shared: { enabled: false } },
+  lessonshare: { board: { enabled: true }, push: { policy: "verified" }, shared: { enabled: false } },
+  "lessonshare-pull": { board: { enabled: true }, push: { policy: "none" }, shared: { enabled: false } },
+  workspace: { board: { enabled: false }, push: { policy: "none" }, shared: { enabled: true } }
+};
+var DEFAULTS = {
+  criteria: "",
+  context_files: [],
+  candidate: { seed: null, files: null, max_bytes: 1048576 },
+  verify: { kind: null },
+  verifier: { session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
+  eval: { command: null, cwd: ".", timeout_s: 600, concurrency: 1, precheck: null, precheck_concurrency: 4, block_s: 300, max_pending: 2, max_candidates: 384 },
+  metric: { name: null, direction: null, target: null, min_gain: 0.01 },
+  gate: { reference: "author_best" },
+  baseline_runs: 3,
+  lesson: {
+    max_chars: 2e3,
+    max_lines: 15,
+    max_code_lines: 3,
+    code_patterns: [
+      "^\\s*(def|class|import|fn|func|function|return)\\b",
+      "^\\s*from\\s+\\S+\\s+import\\b",
+      "^\\s*#include\\b",
+      "^\\s*(for|while|if)\\s*\\(",
+      "[{};]\\s*$",
+      "\\):\\s*$"
+    ],
+    def_patterns: ["\\b(def|fn|func|function)\\s+[A-Za-z_]\\w*\\s*\\("],
+    api_patterns: [],
+    max_per_candidate: 2,
+    max_copy_chars: 40
+  },
+  push: { policy: "verified", max_per_delivery: 5 },
+  read: { require_own_correct: false },
+  board: { enabled: true },
+  shared: { enabled: false },
+  session: { eval_quota: 25, grace: 3 },
+  budget: { minutes: 120, evals: null },
+  stop: { on_target: null },
+  confirm: { replays: 3, top_k: 3, max_candidates: 10 },
+  writer: { extra_tools: [] }
+};
+function need(cond, msg) {
+  if (!cond) throw new HostError("invalid_task", msg);
+}
+var isNum = (x) => typeof x === "number" && Number.isFinite(x);
+var isPosInt = (x) => Number.isInteger(x) && x > 0;
+function loadTaskFile(projectDir2, taskPath) {
+  const abs = resolveInside(projectDir2, taskPath, "task_path");
+  let raw;
+  try {
+    raw = fs2.readFileSync(abs, "utf8");
+  } catch {
+    throw new HostError("task_not_found", `cannot read task file ${taskPath}`);
+  }
+  try {
+    const t = JSON.parse(raw);
+    need(isObj(t), "task file must be a JSON object");
+    return t;
+  } catch (e) {
+    if (e instanceof HostError) throw e;
+    throw new HostError("invalid_task", `task file is not valid JSON: ${e.message}`);
+  }
+}
+function buildConfig(projectDir2, task, mode, n, budget, overrides) {
+  if (!(mode in MODES)) throw new ArgError(`unknown mode "${mode}"; expected one of ${Object.keys(MODES).join(", ")}`);
+  if (!isPosInt(n) || n > 99) throw new ArgError("n must be an integer between 1 and 99");
+  let cfg = deepMerge(structuredClone(DEFAULTS), structuredClone(task));
+  cfg = deepMerge(cfg, MODES[mode]);
+  if (isObj(budget)) cfg = deepMerge(cfg, { budget: Object.fromEntries(Object.entries(budget).filter(([, v]) => v !== null && v !== void 0)) });
+  cfg = deepMerge(cfg, overrides);
+  cfg.mode = mode;
+  cfg.n = n;
+  validateConfig(projectDir2, cfg);
+  return cfg;
+}
+function validateConfig(projectDir2, cfg) {
+  need(typeof cfg.name === "string" && cfg.name, "name is required");
+  need(typeof cfg.goal === "string" && cfg.goal, "goal is required");
+  need(Array.isArray(cfg.context_files) && cfg.context_files.every((f) => typeof f === "string"), "context_files must be an array of strings");
+  for (const f of cfg.context_files) resolveInside(projectDir2, f, "context_files");
+  need(typeof cfg.criteria === "string", "criteria must be a string");
+  need(isObj(cfg.verify), "verify must be an object");
+  need(isObj(cfg.eval), "eval must be an object");
+  if (cfg.verify.kind == null) cfg.verify.kind = cfg.eval.command != null ? "command" : "agent";
+  need(cfg.verify.kind === "command" || cfg.verify.kind === "agent", 'verify.kind must be "command" or "agent"');
+  const agentMode = cfg.verify.kind === "agent";
+  need(isObj(cfg.candidate), "candidate must be an object");
+  if (!agentMode) need(typeof cfg.candidate.seed === "string", "candidate.seed is required when an evaluation command is used");
+  if (cfg.candidate.seed != null) {
+    need(typeof cfg.candidate.seed === "string", "candidate.seed must be a path");
+    const seedAbs = resolveInside(projectDir2, cfg.candidate.seed, "candidate.seed");
+    need(fs2.existsSync(seedAbs) && fs2.statSync(seedAbs).isDirectory(), `candidate.seed "${cfg.candidate.seed}" is not a directory`);
+    if (cfg.candidate.files == null) cfg.candidate.files = agentMode ? ["**"] : listFiles(seedAbs);
+  } else if (cfg.candidate.files == null) cfg.candidate.files = ["**"];
+  need(Array.isArray(cfg.candidate.files) && cfg.candidate.files.length > 0 && cfg.candidate.files.every((f) => typeof f === "string"), "candidate.files must be a non-empty array of globs");
+  for (const g of cfg.candidate.files) {
+    if (path2.isAbsolute(g) || g.split(/[\\/]/).includes("..")) throw new HostError("path_escape", `candidate.files: "${g}" must stay inside the work directory`);
+  }
+  need(isPosInt(cfg.candidate.max_bytes), "candidate.max_bytes must be a positive integer");
+  if (!agentMode) validateEvalSpec(projectDir2, cfg.eval, "eval");
+  else {
+    need(cfg.eval.precheck == null, 'eval.precheck needs an evaluation command (verify.kind "command")');
+    if (cfg.metric.name == null) cfg.metric.name = "score";
+    if (cfg.metric.direction == null) cfg.metric.direction = "max";
+    need(cfg.metric.target == null, 'metric.target needs an evaluation command (verify.kind "command")');
+  }
+  if (cfg.eval.precheck != null) {
+    need(isObj(cfg.eval.precheck), "eval.precheck must be an object or null");
+    cfg.eval.precheck = { cwd: cfg.eval.cwd, timeout_s: cfg.eval.timeout_s, ...cfg.eval.precheck };
+    validateEvalSpec(projectDir2, cfg.eval.precheck, "eval.precheck");
+  }
+  for (const k of ["concurrency", "precheck_concurrency", "max_pending", "max_candidates"]) need(isPosInt(cfg.eval[k]), `eval.${k} must be a positive integer`);
+  need(isNum(cfg.eval.block_s) && cfg.eval.block_s >= 0, "eval.block_s must be a non-negative number");
+  need(isObj(cfg.metric) && typeof cfg.metric.name === "string" && cfg.metric.name, "metric.name is required");
+  need(cfg.metric.direction === "min" || cfg.metric.direction === "max", 'metric.direction must be "min" or "max"');
+  need(cfg.metric.target == null || isNum(cfg.metric.target), "metric.target must be a number");
+  if (cfg.metric.target === void 0) cfg.metric.target = null;
+  need(isNum(cfg.metric.min_gain) && cfg.metric.min_gain >= 0, "metric.min_gain must be a non-negative number");
+  need(["author_best", "team_best_seen"].includes(cfg.gate.reference), "gate.reference must be author_best or team_best_seen");
+  need(isPosInt(cfg.baseline_runs), "baseline_runs must be a positive integer");
+  for (const k of ["max_chars", "max_lines", "max_code_lines", "max_per_candidate"]) need(isPosInt(cfg.lesson[k]), `lesson.${k} must be a positive integer`);
+  need(Number.isInteger(cfg.lesson.max_copy_chars) && cfg.lesson.max_copy_chars >= 0, "lesson.max_copy_chars must be a non-negative integer (0 disables the check)");
+  for (const k of ["session_quota", "wait_s", "note_max_chars"]) need(isPosInt(cfg.verifier[k]), `verifier.${k} must be a positive integer`);
+  need(typeof cfg.verifier.bash === "boolean", "verifier.bash must be boolean");
+  for (const k of ["code_patterns", "def_patterns", "api_patterns"]) {
+    need(Array.isArray(cfg.lesson[k]), `lesson.${k} must be an array of regular expressions`);
+    for (const p of cfg.lesson[k]) {
+      try {
+        new RegExp(p);
+      } catch {
+        throw new HostError("invalid_task", `lesson.${k}: invalid regular expression ${JSON.stringify(p)}`);
+      }
+    }
+  }
+  need(["verified", "all", "none"].includes(cfg.push.policy), "push.policy must be verified, all or none");
+  need(isPosInt(cfg.push.max_per_delivery), "push.max_per_delivery must be a positive integer");
+  need(typeof cfg.read.require_own_correct === "boolean", "read.require_own_correct must be boolean");
+  need(isPosInt(cfg.session.eval_quota), "session.eval_quota must be a positive integer");
+  need(Number.isInteger(cfg.session.grace) && cfg.session.grace >= 0, "session.grace must be a non-negative integer");
+  need(isNum(cfg.budget.minutes) && cfg.budget.minutes > 0, "budget.minutes must be a positive number");
+  need(cfg.budget.evals == null || isPosInt(cfg.budget.evals), "budget.evals must be a positive integer or null");
+  if (cfg.budget.evals === void 0) cfg.budget.evals = null;
+  if (cfg.stop.on_target == null) cfg.stop.on_target = cfg.metric.target != null;
+  need(typeof cfg.stop.on_target === "boolean", "stop.on_target must be boolean");
+  for (const k of ["replays", "top_k", "max_candidates"]) need(isPosInt(cfg.confirm[k]), `confirm.${k} must be a positive integer`);
+  need(Array.isArray(cfg.writer.extra_tools), "writer.extra_tools must be an array");
+}
+function validateEvalSpec(projectDir2, spec, what) {
+  need(Array.isArray(spec.command) && spec.command.length > 0 && spec.command.every((a) => typeof a === "string"), `${what}.command must be a non-empty argv array of strings`);
+  need(typeof spec.cwd === "string", `${what}.cwd must be a string`);
+  resolveInside(projectDir2, spec.cwd, `${what}.cwd`);
+  need(isNum(spec.timeout_s) && spec.timeout_s > 0, `${what}.timeout_s must be a positive number`);
+}
+function writerIds(n) {
+  return Array.from({ length: n }, (_, i) => `w${String(i + 1).padStart(2, "0")}`);
+}
+
+// src/core/host.ts
+var fs5 = __toESM(require("node:fs"));
+var path5 = __toESM(require("node:path"));
+var crypto2 = __toESM(require("node:crypto"));
+var import_node_child_process2 = require("node:child_process");
+
+// src/core/evalcmd.ts
+var import_node_child_process = require("node:child_process");
+var MAX_CAPTURE = 1 << 20;
+var MAX_LOG = 2e5;
+var MAX_DETAIL = 2e3;
+function substitute(argv, vars) {
+  return argv.map((a) => a.replace(/\{(candidate_dir|run_dir|cand_id)\}/g, (_, k) => vars[k] ?? ""));
+}
+function tailLines(s, n) {
+  return s.split("\n").slice(-n).join("\n");
+}
+function parseEvalOutput(stdout) {
+  const lines = stdout.split("\n").filter((l) => l.trim() !== "");
+  if (!lines.length) return { status: "infra_error", metric: null, detail: "evaluator printed nothing on stdout" };
+  let obj;
+  try {
+    obj = JSON.parse(lines[lines.length - 1]);
+  } catch {
+    return { status: "infra_error", metric: null, detail: "last stdout line of the evaluator is not valid JSON" };
+  }
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return { status: "infra_error", metric: null, detail: "last stdout line of the evaluator is not a JSON object" };
+  let detail = typeof obj.detail === "string" ? obj.detail : "";
+  if (detail.length > MAX_DETAIL) detail = detail.slice(0, MAX_DETAIL);
+  if (obj.status === "ok") {
+    if (typeof obj.metric !== "number" || !Number.isFinite(obj.metric)) return { status: "infra_error", metric: null, detail: "status ok without a finite numeric metric" };
+    return { status: "ok", metric: obj.metric, detail };
+  }
+  if (obj.status === "incorrect" || obj.status === "build_error") return { status: obj.status, metric: null, detail };
+  return { status: "infra_error", metric: null, detail: `unknown status ${JSON.stringify(obj.status)}` };
+}
+function runCommand(spec, cwdAbs, vars) {
+  return new Promise((resolve5) => {
+    const argv = substitute(spec.command, vars);
+    const t0 = Date.now();
+    let out = "";
+    let err = "";
+    let timedOut = false;
+    let settled = false;
+    let timer;
+    const finish = (o) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      let log = `$ ${argv.join(" ")}
+--- stdout ---
+${out}
+--- stderr ---
+${err}
+`;
+      if (log.length > MAX_LOG) log = log.slice(0, MAX_LOG / 2) + "\n...[truncated]...\n" + log.slice(-MAX_LOG / 2);
+      resolve5({ ...o, eval_s: (Date.now() - t0) / 1e3, log });
+    };
+    let child;
+    try {
+      child = (0, import_node_child_process.spawn)(argv[0], argv.slice(1), { cwd: cwdAbs, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    } catch (e) {
+      return resolve5({ status: "infra_error", metric: null, detail: `failed to start evaluator: ${e.message}`, eval_s: 0, log: String(e) });
+    }
+    timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+        }
+      }
+    }, spec.timeout_s * 1e3);
+    child.stdout.on("data", (d) => {
+      if (out.length < MAX_CAPTURE) out += d;
+    });
+    child.stderr.on("data", (d) => {
+      if (err.length < MAX_CAPTURE) err += d;
+    });
+    child.on("error", (e) => finish({ status: "infra_error", metric: null, detail: `failed to start evaluator: ${e.message}` }));
+    child.on("close", (code, signal) => {
+      if (timedOut) return finish({ status: "infra_error", metric: null, detail: `evaluator timed out after ${spec.timeout_s}s` });
+      if (code !== 0) return finish({ status: "infra_error", metric: null, detail: `evaluator exited with ${signal ? "signal " + signal : "code " + code}` });
+      finish(parseEvalOutput(out));
+    });
+  });
+}
+function interpretPrecheck(o) {
+  if (o.status === "ok") return { pass: true, detail: "" };
+  if (o.status === "build_error" || o.status === "incorrect") return { pass: false, detail: o.detail };
+  if (/not valid JSON|printed nothing|not a JSON object|unknown status|without a finite/.test(o.detail)) return { pass: true, detail: "" };
+  return { pass: false, detail: (o.detail + "\n" + tailLines(o.log, 20)).slice(0, MAX_DETAIL) };
+}
+
+// src/core/run.ts
+var fs4 = __toESM(require("node:fs"));
+var path4 = __toESM(require("node:path"));
+
+// src/core/lesson.ts
+var REJECT_MESSAGE = "Lessons are short prose. State the design insight and its measured effect in words, without code.";
+function validateLessonText(text, lc) {
+  if (text.length > lc.max_chars) return "too_long";
+  if (text.includes("```") || text.includes("~~~")) return "code_block";
+  const lines = text.split("\n").filter((l) => l.trim() !== "");
+  if (lines.length > lc.max_lines) return "too_many_lines";
+  const code = lc.code_patterns.map((p) => new RegExp(p));
+  const codeLines = lines.filter((l) => code.some((r) => r.test(l))).length;
+  if (codeLines >= lc.max_code_lines) return "looks_like_code";
+  const hasDef = lc.def_patterns.some((p) => new RegExp(p).test(text));
+  const hasApi = lc.api_patterns.some((p) => new RegExp(p).test(text));
+  if (hasDef && hasApi) return "looks_like_code";
+  return null;
+}
+function lessonHeader(writerId, candId, ev, metric) {
+  const parts = [writerId, candId, ev.status];
+  if (ev.status === "ok" && ev.metric != null) {
+    if (ev.reference != null && ev.gain != null) {
+      const pct2 = Math.abs(ev.gain * 100).toFixed(1);
+      const word = ev.gain > 0 ? "better" : ev.gain < 0 ? "worse" : "same";
+      parts.push(`${metric.name} ${fmtNum(ev.reference)} \u2192 ${fmtNum(ev.metric)} (${word === "same" ? "no change" : pct2 + "% " + word})`);
+    } else parts.push(`${metric.name} ${fmtNum(ev.metric)}`);
+    parts.push(ev.verified_gain ? "verified gain" : "no gain");
+  }
+  return "[" + parts.join(" \xB7 ") + "]";
+}
+var squash = (t) => t.replace(/\s+/g, " ").trim();
+function copiesFromWork(text, workTexts, minChars) {
+  if (minChars <= 0) return false;
+  const lesson = squash(text);
+  if (lesson.length < minChars) return false;
+  const hay = workTexts.map(squash).filter((w) => w.length >= minChars);
+  if (!hay.length) return false;
+  const step = Math.max(1, Math.floor(minChars / 10));
+  for (let i = 0; i + minChars <= lesson.length; i += step) {
+    const win = lesson.slice(i, i + minChars);
+    if (hay.some((w) => w.includes(win))) return true;
+  }
+  const tail = lesson.slice(lesson.length - minChars);
+  return hay.some((w) => w.includes(tail));
+}
+var COPY_MESSAGE = "A lesson must not paste your own result. Describe the insight in your own words: what you tried, why it works, what you measured or checked. Teammates should be able to apply the idea, not copy the answer.";
+function verdictHeader(writerId, candId, verdict, note) {
+  const label = { pending: "pending verification", verified: "verified by verifier", unverified: "not verified", refuted: "refuted by verifier", withheld: "withheld" }[verdict];
+  return "[" + [writerId, candId, note ? `${label}: ${note}` : label].join(" \xB7 ") + "]";
+}
+
+// src/core/report.ts
+var fs3 = __toESM(require("node:fs"));
+var path3 = __toESM(require("node:path"));
+var pct = (x) => x == null || !Number.isFinite(x) ? "n/a" : (x * 100).toFixed(1) + "%";
+function codeLineSet(dir) {
+  const set = /* @__PURE__ */ new Set();
+  for (const f of listFiles(dir)) {
+    let txt;
+    try {
+      txt = fs3.readFileSync(path3.join(dir, f), "utf8");
+    } catch {
+      continue;
+    }
+    for (const raw of txt.split("\n")) {
+      const l = raw.trim();
+      if (!l || l.startsWith("#") || l.startsWith("//") || l.startsWith("/*") || l.startsWith("*") || l.startsWith("--")) continue;
+      set.add(l);
+    }
+  }
+  return set;
+}
+function jaccard(a, b) {
+  if (!a.size && !b.size) return 1;
+  let inter = 0;
+  for (const x of a) if (b.has(x)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+function buildReport(runDir2) {
+  const rf = readJson(path3.join(runDir2, "run.json"));
+  const cfg = rf.config;
+  const events = readJsonl(path3.join(runDir2, "events.jsonl"));
+  const dir = cfg.metric.direction;
+  const better = (a, b) => dir === "min" ? a < b : a > b;
+  const within = (m, best, tol) => dir === "min" ? m <= best * (1 + tol) : m >= best * (1 - tol);
+  const relGain = (from, to) => from === 0 ? 0 : dir === "min" ? (from - to) / from : (to - from) / Math.abs(from);
+  const W = {};
+  for (const id of rf.writers) W[id] = { writer_id: id, best_metric: null, best_cand: null, evals: 0, sessions: 0, lessons_posted: 0, lessons_pushed: 0, read_chars: 0, _sessions: /* @__PURE__ */ new Set(), _bestTimeline: [] };
+  const evals = { ok: 0, incorrect: 0, build_error: 0, infra_error: 0 };
+  const agentMode = cfg.verify?.kind === "agent";
+  const lessons = { posted: 0, pushed: 0, rejected: 0, delivered: 0 };
+  const verdicts = { verified: 0, unverified: 0, refuted: 0, withheld: 0 };
+  const verdictDelay = [];
+  const postedAt = {};
+  const timeline = [];
+  const candWriter = {};
+  const results = {};
+  const sessionEvals = {};
+  let closedReason = null;
+  let lastMinute = 0;
+  let queueS = 0;
+  let evalS = 0;
+  let reads = 0;
+  let readsNoCorrect = 0;
+  let guardDenied = 0;
+  let stampMissing = 0;
+  let joinsWithAgent = 0;
+  let confirmedEv = null;
+  let gainsTotal = 0;
+  let gainsFollowed = 0;
+  const awaitingLesson = {};
+  const replays = {};
+  const hasOk = {};
+  const lastCheckpoint = {};
+  const postedLessonCands = /* @__PURE__ */ new Set();
+  const lessonAt = [];
+  events.forEach((e, idx) => {
+    if (e.type === "lesson_posted") lessonAt.push({ writer: e.writer_id, cand: e.cand_id, idx });
+  });
+  events.forEach((e, idx) => {
+    if (typeof e.minute === "number" && e.minute > lastMinute && e.type !== "confirm_replay" && e.type !== "run_confirmed") lastMinute = e.minute;
+    switch (e.type) {
+      case "join":
+        if (W[e.writer_id]) W[e.writer_id]._sessions.add(e.session);
+        if (e.agent_id) joinsWithAgent++;
+        break;
+      case "stamp_missing":
+        stampMissing++;
+        break;
+      case "guard_denied":
+        guardDenied++;
+        break;
+      case "eval_submitted":
+        candWriter[e.cand_id] = e.writer_id;
+        if (awaitingLesson[e.writer_id]) {
+          const cand = awaitingLesson[e.writer_id];
+          if (lessonAt.some((l) => l.cand === cand && l.idx < idx)) gainsFollowed++;
+          awaitingLesson[e.writer_id] = null;
+        }
+        break;
+      case "eval_result": {
+        results[e.cand_id] = e;
+        const w = W[e.writer_id];
+        if (!w) break;
+        evals[e.status] = (evals[e.status] ?? 0) + 1;
+        w.evals++;
+        const key = `${e.writer_id}/s${e.session}`;
+        sessionEvals[key] = (sessionEvals[key] ?? 0) + 1;
+        queueS += e.queue_wait_s ?? 0;
+        evalS += e.eval_s ?? 0;
+        if (e.status === "ok" || e.status === "recorded") hasOk[e.writer_id] = true;
+        if (e.status === "recorded") lastCheckpoint[e.writer_id] = e.cand_id;
+        if (e.is_own_best) {
+          w.best_metric = e.metric;
+          w.best_cand = e.cand_id;
+          w._bestTimeline.push({ minute: e.minute, metric: e.metric });
+        }
+        if (e.is_team_best) timeline.push({ minute: e.minute, metric: e.metric, writer_id: e.writer_id, cand_id: e.cand_id });
+        if (e.verified_gain && cfg.board.enabled) {
+          gainsTotal++;
+          awaitingLesson[e.writer_id] = e.cand_id;
+        }
+        break;
+      }
+      case "lesson_posted":
+        lessons.posted++;
+        postedAt[e.lesson_id] = e.minute;
+        postedLessonCands.add(e.cand_id);
+        if (W[e.writer_id]) {
+          W[e.writer_id].lessons_posted++;
+          if (e.pushed) W[e.writer_id].lessons_pushed++;
+        }
+        if (e.pushed) lessons.pushed++;
+        break;
+      case "lesson_rejected":
+        lessons.rejected++;
+        break;
+      case "lesson_verdict":
+        verdicts[e.verdict] = (verdicts[e.verdict] ?? 0) + 1;
+        if (e.pushed) {
+          lessons.pushed++;
+          if (W[e.writer_id]) W[e.writer_id].lessons_pushed++;
+        }
+        if (postedAt[e.lesson_id] != null) verdictDelay.push(Math.max(0, e.minute - postedAt[e.lesson_id]));
+        break;
+      case "lesson_delivered":
+        lessons.delivered++;
+        if (W[e.to]) W[e.to].read_chars += e.chars ?? 0;
+        break;
+      case "lessons_read":
+        reads++;
+        if (!hasOk[e.writer_id]) readsNoCorrect++;
+        if (W[e.writer_id]) W[e.writer_id].read_chars += e.chars ?? 0;
+        break;
+      case "run_closed":
+        closedReason = e.reason;
+        break;
+      case "run_reopened":
+        closedReason = null;
+        confirmedEv = null;
+        break;
+      case "confirm_replay":
+        if (e.status === "ok") (replays[e.cand_id] ??= []).push(e.metric);
+        break;
+      case "run_confirmed":
+        confirmedEv = e;
+        break;
+    }
+  });
+  for (const [, cand] of Object.entries(awaitingLesson)) if (cand && postedLessonCands.has(cand)) gainsFollowed++;
+  const catchUps = [];
+  let censored = 0;
+  let prevBest = rf.baseline.metric;
+  for (const tb of timeline) {
+    const jump = prevBest == null ? true : relGain(prevBest, tb.metric) >= 0.05;
+    prevBest = tb.metric;
+    if (!jump) continue;
+    for (const id of rf.writers) {
+      if (id === tb.writer_id) continue;
+      const hit = W[id]._bestTimeline.find((p) => within(p.metric, tb.metric, 0.05));
+      if (hit) catchUps.push(Math.max(0, round(hit.minute - tb.minute, 2)));
+      else censored++;
+    }
+  }
+  const allCatch = [...catchUps, ...Array(censored).fill(Infinity)];
+  const catchMedian = allCatch.length ? median(allCatch) : null;
+  const resultOf = (id) => agentMode ? fs3.existsSync(path3.join(runDir2, "candidates", "final-" + id, "src")) ? "final-" + id : lastCheckpoint[id] ?? null : W[id].best_cand;
+  const bests = rf.writers.filter((id) => resultOf(id)).map((id) => ({ id, set: codeLineSet(path3.join(runDir2, "candidates", resultOf(id), "src")) }));
+  const parent = {};
+  const find = (x) => parent[x] === x ? x : parent[x] = find(parent[x]);
+  for (const b of bests) parent[b.id] = b.id;
+  for (let i = 0; i < bests.length; i++) for (let j = i + 1; j < bests.length; j++) if (jaccard(bests[i].set, bests[j].set) >= 0.8) parent[find(bests[i].id)] = find(bests[j].id);
+  const families = new Set(bests.map((b) => find(b.id))).size;
+  const target = cfg.metric.target;
+  const meets = (m) => target != null && (dir === "min" ? m <= target : m >= target);
+  let winner = null;
+  const warnings = [];
+  if (confirmedEv && confirmedEv.judged) {
+    const top = confirmedEv.ranking[0];
+    winner = { cand_id: confirmedEv.winner, writer_id: confirmedEv.winner_writer, metric: null, confirmed_metric: null, replays: [], improvement: null, reached_target: false, judged: true, score: top.score, reason: top.reason, path: path3.join(runDir2, "winner") };
+    warnings.push("The winner was chosen by a judge agent against the task criteria, not by a measurement. Check it yourself before relying on it.");
+  } else if (confirmedEv && confirmedEv.winner) {
+    const r = results[confirmedEv.winner];
+    const cm = confirmedEv.confirmed_metric;
+    winner = {
+      cand_id: confirmedEv.winner,
+      writer_id: r?.writer_id ?? candWriter[confirmedEv.winner],
+      metric: r?.metric ?? null,
+      confirmed_metric: cm,
+      replays: confirmedEv.replays,
+      improvement: rf.baseline.metric != null ? round(relGain(rf.baseline.metric, cm), 4) : null,
+      reached_target: meets(cm),
+      path: path3.join(runDir2, "winner")
+    };
+  } else if (confirmedEv) warnings.push(evals.ok ? "No candidate passed confirmation: every replayed candidate had at least one non-ok replay." : "No correct candidate was produced, so there is no winner.");
+  else warnings.push("Run is not confirmed yet; winner is not selected.");
+  if (rf.baseline.status !== "ok" && !agentMode) warnings.push("Baseline was not ok; improvement is not available.");
+  const isolation = stampMissing > 0 || joinsWithAgent === 0 ? "unenforced" : "enforced";
+  if (isolation === "unenforced") warnings.push("Hooks did not stamp every writer session; workspace isolation relied on the prompt only.");
+  const sessCounts = Object.values(sessionEvals);
+  const writers = rf.writers.map((id) => {
+    const w = W[id];
+    return { writer_id: id, best_metric: w.best_metric, best_cand: w.best_cand, evals: w.evals, sessions: w._sessions.size, lessons_posted: w.lessons_posted, lessons_pushed: w.lessons_pushed, read_chars: w.read_chars };
+  });
+  const readChars = writers.map((w) => w.read_chars);
+  const diagnostics = {
+    lesson_verified_rate: lessons.posted ? round(lessons.pushed / lessons.posted, 3) : null,
+    catch_up_minutes_median: catchMedian == null ? null : Number.isFinite(catchMedian) ? catchMedian : null,
+    catch_up: { events: catchUps.length + censored, caught: catchUps.length, censored },
+    read_chars_per_writer_mean: readChars.length ? Math.round(readChars.reduce((a, b) => a + b, 0) / readChars.length) : 0,
+    reads_without_own_correct_share: reads ? round(readsNoCorrect / reads, 3) : null,
+    implementation_families: families,
+    implementation_family_ratio: bests.length ? round(families / bests.length, 3) : null,
+    eval_queue_share: queueS + evalS > 0 ? round(queueS / (queueS + evalS), 3) : null,
+    evals_per_session: { sessions: sessCounts.length, mean: sessCounts.length ? round(sessCounts.reduce((a, b) => a + b, 0) / sessCounts.length, 1) : null, min: sessCounts.length ? Math.min(...sessCounts) : null, max: sessCounts.length ? Math.max(...sessCounts) : null },
+    verification: agentMode ? { kind: "agent", verdicts, pending: lessons.posted - Object.values(verdicts).reduce((a, b) => a + b, 0), verdict_delay_minutes_median: verdictDelay.length ? round(median(verdictDelay), 2) : null } : { kind: "command" },
+    behavior: {
+      lesson_after_verified_gain_rate: gainsTotal ? round(gainsFollowed / gainsTotal, 3) : null,
+      verified_gains: gainsTotal,
+      lesson_rejection_rate: lessons.posted + lessons.rejected ? round(lessons.rejected / (lessons.posted + lessons.rejected), 3) : null,
+      guard_denied: guardDenied
+    }
+  };
+  const report = {
+    verify_kind: agentMode ? "agent" : "command",
+    run_id: rf.run_id,
+    run_dir: runDir2,
+    task: cfg.name,
+    mode: cfg.mode,
+    n: cfg.n,
+    closed_reason: closedReason,
+    minutes: round(lastMinute, 1),
+    metric: { name: cfg.metric.name, direction: dir, target },
+    baseline: { metric: rf.baseline.metric, status: rf.baseline.status, noise: rf.baseline.noise },
+    winner,
+    ranking: confirmedEv?.ranking ?? null,
+    team: {
+      evals,
+      writers,
+      writers_at_target: target == null ? null : writers.filter((w) => w.best_metric != null && meets(w.best_metric)).length,
+      lessons,
+      team_best_timeline: timeline.map(({ minute, metric, writer_id }) => ({ minute, metric, writer_id }))
+    },
+    diagnostics,
+    isolation,
+    warnings
+  };
+  report.hints = diagnoseHints(report, cfg);
+  return report;
+}
+function diagnoseHints(r, cfg) {
+  const d = r.diagnostics;
+  const hints = [];
+  const board = cfg.board.enabled;
+  if (board && r.team.lessons.pushed > 0 && r.team.lessons.delivered === 0) hints.push("Lessons were pushed but none was delivered: check that writers keep evaluating (pushes ride on evaluation results).");
+  if (d.catch_up.events > 0 && d.catch_up.censored > d.catch_up.caught) hints.push(board ? "Most writers never caught up with new team bests: discoveries are not spreading. Check lesson_delivered events and whether verified gains were followed by a lesson." : "Most writers never caught up with new team bests. In this mode nothing is shared; try mode lessonshare.");
+  if (board && d.lesson_verified_rate != null && d.lesson_verified_rate < 0.15) hints.push("Verified-lesson rate is low: writers rarely make verified gains or do not post after them. Check behavior.lesson_after_verified_gain_rate and whether metric.min_gain is above the real step size.");
+  if (board && d.behavior.lesson_after_verified_gain_rate != null && d.behavior.lesson_after_verified_gain_rate < 0.8) hints.push("Writers often skipped posting a lesson after a verified gain; the push channel is underused.");
+  if (d.implementation_family_ratio != null && r.n >= 3 && d.implementation_family_ratio < 0.5) hints.push("Implementation similarity is high: the team is converging on one implementation. Check that the guard hook is active and the mode is not workspace.");
+  if (board && d.reads_without_own_correct_share != null && d.reads_without_own_correct_share > 0.2) hints.push("Many board reads happened before the reader had a correct candidate of its own. Consider read.require_own_correct=true.");
+  if (d.eval_queue_share != null && d.eval_queue_share > 0.5) hints.push("Evaluations spend most of their time queued: the bottleneck is evaluator throughput. Reduce N, or raise eval.concurrency if the metric tolerates concurrent runs.");
+  if (board && r.team.lessons.delivered > 0 && r.winner && r.metric.target != null && !r.winner.reached_target) hints.push("Pushes were delivered but the target was not reached: the bottleneck is discovery itself. Add writers or time; changing the channel will not help.");
+  if (r.isolation === "unenforced") hints.push("Isolation was not enforced by hooks in this run; similarity numbers should be read with that in mind.");
+  return hints;
+}
+function renderReportMd(r) {
+  const m = r.metric;
+  const L = [];
+  L.push(`# LessonShare report: ${r.task}`, "");
+  L.push(`- Run: \`${r.run_id}\` \xB7 mode **${r.mode}** \xB7 N=${r.n} \xB7 closed by **${r.closed_reason ?? "n/a"}** after ${r.minutes} min`);
+  const agent = r.verify_kind === "agent";
+  if (agent) L.push("- No evaluator: lessons were checked by the verifier agent, results ranked by a judge agent");
+  else {
+    L.push(`- Metric: ${m.name} (${m.direction === "min" ? "lower" : "higher"} is better)${m.target != null ? `, target ${fmtNum(m.target)}` : ""}`);
+    L.push(`- Baseline: ${r.baseline.metric == null ? "n/a (" + r.baseline.status + ")" : fmtNum(r.baseline.metric)}`);
+  }
+  if (r.winner && r.winner.judged) {
+    L.push(`- **Winner: ${r.winner.writer_id}** \xB7 chosen by the judge agent, score ${r.winner.score}/10: ${r.winner.reason}`);
+    L.push(`- Winner files: \`${r.winner.path}\` (not applied to your workspace)`);
+  } else if (r.winner) {
+    const w = r.winner;
+    L.push(`- **Winner: ${w.cand_id} by ${w.writer_id}** \xB7 confirmed ${fmtNum(w.confirmed_metric)} (replays ${w.replays.map(fmtNum).join(", ")}) \xB7 improvement ${pct(w.improvement)}${m.target != null ? ` \xB7 target ${w.reached_target ? "reached" : "not reached"}` : ""}`);
+    L.push(`- Winner files: \`${w.path}\` (not applied to your workspace)`);
+  } else L.push("- **Winner: none**");
+  L.push(`- Isolation: ${r.isolation}`, "");
+  if (r.ranking) {
+    L.push("## Judge ranking", "", "| writer | score | reason |", "|---|---|---|");
+    for (const x of r.ranking) L.push(`| ${x.writer_id} | ${x.score} | ${x.reason} |`);
+    L.push("");
+  }
+  L.push("## Team", "");
+  const e = r.team.evals;
+  L.push(e.recorded ? `Checkpoints: ${e.recorded}.` : `Evaluations: ${e.ok} ok, ${e.incorrect} incorrect, ${e.build_error} build_error, ${e.infra_error} infra_error.`);
+  const l = r.team.lessons;
+  L.push(`Lessons: ${l.posted} posted, ${l.pushed} pushed, ${l.rejected} rejected, ${l.delivered} deliveries.`);
+  const v = r.diagnostics.verification;
+  if (v?.kind === "agent") L.push(`Verifier verdicts: ${v.verdicts.verified} verified, ${v.verdicts.unverified} not verified, ${v.verdicts.refuted} refuted, ${v.verdicts.withheld} withheld, ${v.pending} still pending; median time to verdict ${v.verdict_delay_minutes_median ?? "n/a"} min.`);
+  if (r.team.writers_at_target != null) L.push(`Writers at target: ${r.team.writers_at_target}/${r.n}.`);
+  L.push("", "| writer | best | evals | sessions | lessons | pushed | chars read |", "|---|---|---|---|---|---|---|");
+  for (const w of r.team.writers) L.push(`| ${w.writer_id} | ${w.best_metric == null ? "-" : fmtNum(w.best_metric)} | ${w.evals} | ${w.sessions} | ${w.lessons_posted} | ${w.lessons_pushed} | ${w.read_chars} |`);
+  if (!agent) {
+    L.push("", "### Team best over time", "");
+    for (const t of r.team.team_best_timeline) L.push(`- minute ${t.minute}: ${fmtNum(t.metric)} (${t.writer_id})`);
+    if (!r.team.team_best_timeline.length) L.push("- (no correct candidate)");
+  }
+  const d = r.diagnostics;
+  L.push("", "## Diagnostics", "", "Paper values are for orientation only; they are not thresholds.", "", "| metric | value | paper reference |", "|---|---|---|");
+  L.push(`| Lesson verified rate (pushed / posted) | ${pct(d.lesson_verified_rate)} | 37-40% |`);
+  if (!agent) L.push(`| Catch-up time, median minutes (${d.catch_up.caught} caught, ${d.catch_up.censored} censored) | ${d.catch_up_minutes_median ?? (d.catch_up.events ? "not reached (censored)" : "n/a")} | LessonShare 15-19; Independent 40-60; SharedWorkspace ~4 |`);
+  L.push(`| Characters read per writer (pushes + reads), mean | ${d.read_chars_per_writer_mean} | 52K at N=4, 171K at N=16 |`);
+  L.push(`| Share of reads before own ${agent ? "first checkpoint" : "correct candidate"} | ${pct(d.reads_without_own_correct_share)} | 0.17-0.20 pull-only; lower is better |`);
+  L.push(`| ${agent ? "Distinct results / writers with a result" : "Implementation families / writers with a best"} | ${d.implementation_families} (${pct(d.implementation_family_ratio)}) | LessonShare 15.5/16; SharedWorkspace 1.6/16 |`);
+  if (!agent) L.push(`| Evaluation queue share | ${pct(d.eval_queue_share)} | near 0 |`);
+  L.push(`| ${agent ? "Checkpoints" : "Evaluations"} per session (mean, min-max over ${d.evals_per_session.sessions} sessions) | ${d.evals_per_session.mean ?? "n/a"} (${d.evals_per_session.min ?? "-"}-${d.evals_per_session.max ?? "-"}) | none |`);
+  if (!agent) L.push(`| Lesson posted after verified gain, before next evaluate | ${pct(d.behavior.lesson_after_verified_gain_rate)} of ${d.behavior.verified_gains} | expect \u226580% |`);
+  L.push(`| Lesson rejection rate | ${pct(d.behavior.lesson_rejection_rate)} | expect <20% |`);
+  L.push(`| Guard denials | ${d.behavior.guard_denied} | expect 0 |`);
+  L.push("", "## Hints", "");
+  if (r.hints?.length) for (const h of r.hints) L.push(`- ${h}`);
+  else L.push("- No bottleneck stands out.");
+  if (r.warnings?.length) {
+    L.push("", "## Warnings", "");
+    for (const w of r.warnings) L.push(`- ${w}`);
+  }
+  return L.join("\n") + "\n";
+}
+
+// src/core/run.ts
+var pad = (n, w = 4) => String(n).padStart(w, "0");
+var AGENT_MODE_INSTRUCTIONS = 'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.';
+function safeBlobs(dir, globs) {
+  try {
+    return readBlobs(dir, matchFiles(dir, globs)).map((b) => b.data.toString("utf8"));
+  } catch {
+    return [];
+  }
+}
+var Run = class {
+  constructor(dir, file, clock, evalFn) {
+    this.dir = dir;
+    this.file = file;
+    this.clock = clock;
+    this.evalFn = evalFn;
+    this.id = file.run_id;
+    this.cfg = file.config;
+    this.baseline = file.baseline;
+    this.writerIds = file.writers;
+    this.evalsLimit = this.cfg.budget.evals;
+    this.agentMode = this.cfg.verify.kind === "agent";
+    for (const id of this.writerIds) {
+      this.writers.set(id, { id, best: null, hashes: /* @__PURE__ */ new Map(), candCount: 0, pending: /* @__PURE__ */ new Set(), sessions: /* @__PURE__ */ new Map(), current: -1, delivered: /* @__PURE__ */ new Set(), bestSeen: null, lessonTexts: /* @__PURE__ */ new Set(), stampMissing: /* @__PURE__ */ new Set() });
+      this.queues.set(id, []);
+    }
+  }
+  dir;
+  file;
+  clock;
+  evalFn;
+  id;
+  cfg;
+  baseline;
+  writerIds;
+  state = "open";
+  closedReason = null;
+  startMs = 0;
+  deadlineMs = 0;
+  evalsLimit;
+  counted = 0;
+  teamBest = null;
+  confirmed = false;
+  writers = /* @__PURE__ */ new Map();
+  cands = /* @__PURE__ */ new Map();
+  lessons = [];
+  agents = /* @__PURE__ */ new Map();
+  candSeq = 0;
+  lessonStore = /* @__PURE__ */ new Map();
+  // queue (in-process; one board server per session, verified by spike S2)
+  queues = /* @__PURE__ */ new Map();
+  lastServed = -1;
+  running = 0;
+  prechecking = 0;
+  precheckWait = [];
+  submitMs = /* @__PURE__ */ new Map();
+  waiters = /* @__PURE__ */ new Map();
+  idleWaiters = [];
+  slotWaiters = [];
+  confirming = null;
+  agentMode;
+  bseqMax = 0;
+  verifierSessions = /* @__PURE__ */ new Map();
+  verifierCurrent = -1;
+  verifierAgents = /* @__PURE__ */ new Set();
+  assigned = /* @__PURE__ */ new Map();
+  lessonWaiters = [];
+  // ---------- paths ----------
+  get eventsPath() {
+    return path4.join(this.dir, "events.jsonl");
+  }
+  get lessonsPath() {
+    return path4.join(this.dir, "lessons.jsonl");
+  }
+  candDir(id) {
+    return path4.join(this.dir, "candidates", id);
+  }
+  writerDir(id) {
+    return path4.join(this.dir, "writers", id);
+  }
+  workDir(id) {
+    return path4.join(this.writerDir(id), "work");
+  }
+  get sharedDir() {
+    return path4.join(this.dir, "shared");
+  }
+  log(msg) {
+    try {
+      fs4.appendFileSync(path4.join(this.dir, "server.log"), `${new Date(this.clock.now()).toISOString()} pid=${process.pid} ${msg}
+`);
+    } catch {
+    }
+  }
+  // ---------- event log: the single source of truth ----------
+  emit(type, fields = {}) {
+    const now = this.clock.now();
+    const ev = { t: new Date(now).toISOString(), minute: this.startMs ? round((now - this.startMs) / 6e4, 2) : 0, type, ...fields };
+    appendLineSync(this.eventsPath, ev);
+    this.apply(ev);
+    return ev;
+  }
+  /** Reducer. Every state change goes through here, live and during recovery. */
+  apply(ev) {
+    const tMs = Date.parse(ev.t);
+    switch (ev.type) {
+      case "run_init":
+        this.startMs = tMs;
+        this.deadlineMs = tMs + this.cfg.budget.minutes * 6e4;
+        break;
+      case "run_reopened":
+        this.state = "open";
+        this.closedReason = null;
+        this.confirmed = false;
+        this.deadlineMs = tMs + ev.minutes_added * 6e4;
+        if (ev.evals_added && this.evalsLimit != null) this.evalsLimit += ev.evals_added;
+        break;
+      case "run_closed":
+        this.state = "closed";
+        this.closedReason = ev.reason;
+        break;
+      case "join": {
+        const w = this.writers.get(ev.writer_id);
+        if (!w.sessions.has(ev.session)) w.sessions.set(ev.session, { counted: 0, submitted: 0, pending: 0 });
+        if (ev.session > w.current) w.current = ev.session;
+        if (ev.agent_id) this.agents.set(ev.agent_id, ev.writer_id);
+        break;
+      }
+      case "stamp_missing":
+        this.writers.get(ev.writer_id).stampMissing.add(ev.session);
+        break;
+      case "eval_submitted": {
+        const w = this.writers.get(ev.writer_id);
+        const n = Number(String(ev.cand_id).slice(1));
+        if (n > this.candSeq) this.candSeq = n;
+        this.cands.set(ev.cand_id, { cand_id: ev.cand_id, writer_id: ev.writer_id, session: ev.session, hash: ev.hash, note: ev.note ?? "", status: "pending", metric: null, detail: "", reference: null, gain: null, verified_gain: false, is_own_best: false, is_team_best: false, reached_target: false, counted: false, queue_wait_s: 0, eval_s: 0, lessons: 0 });
+        w.hashes.set(ev.hash, ev.cand_id);
+        w.candCount++;
+        w.pending.add(ev.cand_id);
+        const s = this.sessionOf(w, ev.session);
+        s.submitted++;
+        s.pending++;
+        break;
+      }
+      case "eval_result": {
+        const c = this.cands.get(ev.cand_id);
+        const w = this.writers.get(c.writer_id);
+        Object.assign(c, { status: ev.status, metric: ev.metric, detail: ev.detail ?? "", reference: ev.reference, gain: ev.gain, verified_gain: ev.verified_gain, is_own_best: ev.is_own_best, is_team_best: ev.is_team_best, reached_target: ev.reached_target, counted: ev.counted, queue_wait_s: ev.queue_wait_s, eval_s: ev.eval_s });
+        w.pending.delete(c.cand_id);
+        const s = this.sessionOf(w, c.session);
+        s.pending = Math.max(0, s.pending - 1);
+        if (ev.counted) {
+          this.counted++;
+          s.counted++;
+        }
+        if (ev.is_own_best) w.best = { cand_id: c.cand_id, metric: ev.metric };
+        if (ev.is_team_best) this.teamBest = { cand_id: c.cand_id, writer_id: c.writer_id, metric: ev.metric };
+        break;
+      }
+      case "lesson_posted": {
+        const l = this.lessonStore.get(ev.lesson_id);
+        if (!l) break;
+        this.lessons.push(l);
+        if (l.bseq != null && l.bseq > this.bseqMax) this.bseqMax = l.bseq;
+        this.writers.get(l.writer_id).lessonTexts.add(l.text);
+        const c = this.cands.get(l.cand_id);
+        if (c) c.lessons++;
+        break;
+      }
+      case "lesson_delivered": {
+        const w = this.writers.get(ev.to);
+        w.delivered.add(ev.lesson_id);
+        this.noteSeen(w, this.lessonStore.get(ev.lesson_id));
+        break;
+      }
+      case "lessons_read": {
+        const w = this.writers.get(ev.writer_id);
+        for (const l of this.lessons) if (l.bseq != null && l.bseq > ev.from_seq && l.bseq <= ev.to_seq && l.writer_id !== w.id) this.noteSeen(w, l);
+        break;
+      }
+      case "verifier_join": {
+        if (!this.verifierSessions.has(ev.session)) this.verifierSessions.set(ev.session, { verdicts: 0 });
+        if (ev.session > this.verifierCurrent) this.verifierCurrent = ev.session;
+        if (ev.agent_id) this.verifierAgents.add(ev.agent_id);
+        break;
+      }
+      case "lesson_verdict": {
+        const l = this.lessonStore.get(ev.lesson_id);
+        if (!l) break;
+        l.verdict = ev.verdict;
+        l.verdict_note = ev.note ?? "";
+        l.header = ev.header;
+        l.pushed = !!ev.pushed;
+        l.bseq = ev.bseq ?? null;
+        if (l.bseq != null && l.bseq > this.bseqMax) this.bseqMax = l.bseq;
+        this.assigned.delete(l.lesson_id);
+        const vs = this.verifierSessions.get(ev.session);
+        if (vs) vs.verdicts++;
+        break;
+      }
+      case "run_confirmed":
+        this.confirmed = true;
+        break;
+    }
+  }
+  sessionOf(w, idx) {
+    let s = w.sessions.get(idx);
+    if (!s) {
+      s = { counted: 0, submitted: 0, pending: 0 };
+      w.sessions.set(idx, s);
+    }
+    return s;
+  }
+  noteSeen(w, l) {
+    if (!l || l.evidence.status !== "ok" || l.evidence.metric == null) return;
+    if (w.bestSeen == null || this.better(l.evidence.metric, w.bestSeen)) w.bestSeen = l.evidence.metric;
+  }
+  /** Rebuild all in-memory state from disk and re-enqueue evaluations that never produced a result. */
+  recover() {
+    for (const l of readJsonl(this.lessonsPath)) this.lessonStore.set(l.lesson_id, l);
+    for (const ev of readJsonl(this.eventsPath)) this.apply(ev);
+    const pending = [...this.cands.values()].filter((c) => c.status === "pending").sort((a, b) => a.cand_id.localeCompare(b.cand_id));
+    for (const c of pending) {
+      this.submitMs.set(c.cand_id, this.clock.now());
+      this.waiters.set(c.cand_id, new Deferred());
+      this.queues.get(c.writer_id).push(c.cand_id);
+    }
+    if (pending.length) this.log(`recovered ${pending.length} unfinished evaluation(s)`);
+    this.tick();
+    this.pump();
+  }
+  // ---------- helpers ----------
+  better(a, b) {
+    return this.cfg.metric.direction === "min" ? a < b : a > b;
+  }
+  meetsTarget(m) {
+    const t = this.cfg.metric.target;
+    if (t == null) return false;
+    return this.cfg.metric.direction === "min" ? m <= t : m >= t;
+  }
+  writer(id) {
+    if (typeof id !== "string") throw new ArgError("writer_id is required");
+    const w = this.writers.get(id);
+    if (!w) throw new ArgError(`unknown writer_id "${id}"; this run has ${this.writerIds[0]}..${this.writerIds[this.writerIds.length - 1]}`);
+    return w;
+  }
+  budgetView() {
+    return {
+      run_state: this.state,
+      minutes_left: this.state === "open" ? Math.max(0, round((this.deadlineMs - this.clock.now()) / 6e4, 1)) : 0,
+      evals_left: this.evalsLimit == null ? null : Math.max(0, this.evalsLimit - this.counted)
+    };
+  }
+  sessionView(w, idx = w.current) {
+    const s = w.sessions.get(idx) ?? { counted: 0, submitted: 0, pending: 0 };
+    const quota = this.cfg.session.eval_quota;
+    return { index: idx, evals_used: s.counted, eval_quota: quota, must_hand_off: s.counted >= quota };
+  }
+  tick() {
+    if (this.state === "open" && this.startMs && this.clock.now() >= this.deadlineMs) this.close("time");
+  }
+  close(reason) {
+    if (this.state !== "open") return;
+    this.emit("run_closed", { reason });
+    this.log(`run closed: ${reason}`);
+    for (const r of this.lessonWaiters.splice(0)) r();
+  }
+  start() {
+    this.emit("run_init", { run_id: this.id, config: this.cfg, baseline: this.baseline });
+  }
+  reopen(minutes, evals) {
+    this.emit("run_reopened", { minutes_added: minutes, evals_added: evals ?? 0 });
+  }
+  maxSession() {
+    let m = -1;
+    for (const w of this.writers.values()) if (w.current > m) m = w.current;
+    return m;
+  }
+  /** Identity checks of section 9.4. Call before any writer-scoped tool. */
+  checkIdentity(writerId, agentId) {
+    if (typeof agentId !== "string" || !agentId || !writerId) return;
+    const owner = this.agents.get(agentId);
+    if (owner && owner !== writerId) throw new HostError("identity_mismatch", `this agent is registered as ${owner}; it cannot act as ${writerId}`);
+  }
+  writerOfAgent(agentId) {
+    return typeof agentId === "string" ? this.agents.get(agentId) : void 0;
+  }
+  // ---------- join ----------
+  join(a) {
+    const w = this.writer(a.writer_id);
+    if (!Number.isInteger(a.session) || a.session < 0) throw new ArgError("session must be a non-negative integer");
+    this.tick();
+    if (this.state === "closed") return { error: "run_closed", message: "The run is closed. Return your structured result now.", budget: this.budgetView() };
+    this.checkIdentity(w.id, a.agent_id);
+    const known = w.sessions.has(a.session);
+    const agentKnown = a.agent_id ? this.agents.get(a.agent_id) === w.id : true;
+    if (!known || !agentKnown) this.emit("join", { writer_id: w.id, session: a.session, agent_id: a.agent_id ?? null, agent_type: a.agent_type ?? null });
+    if (a.agent_id) this.writeAgentMap(a.agent_id, a.agent_type ?? null, w, a.session);
+    else if (!w.stampMissing.has(a.session)) this.emit("stamp_missing", { writer_id: w.id, session: a.session });
+    const sv = this.sessionView(w, a.session);
+    const exhausted = sv.evals_used >= sv.eval_quota || w.current > a.session;
+    const boardOn = this.cfg.board.enabled;
+    return {
+      mode: this.cfg.mode,
+      board_enabled: boardOn,
+      verify_kind: this.cfg.verify.kind,
+      ...this.agentMode ? { how_this_run_works: AGENT_MODE_INSTRUCTIONS, criteria: this.cfg.criteria } : {},
+      mode_instructions: this.cfg.shared.enabled ? `Workspace mode: the directory at shared_dir is readable. It holds every evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' code there. It is read-only. The lesson tools are disabled.` : boardOn ? "" : "Independent mode: the lesson board is disabled. Work on your own; post_lesson and read_lessons return board_disabled.",
+      goal: this.cfg.goal,
+      work_dir: this.workDir(w.id),
+      notes_path: path4.join(this.writerDir(w.id), "NOTES.md"),
+      context_files: this.contextPaths(w.id),
+      candidate_files: this.cfg.candidate.files,
+      ...this.cfg.shared.enabled ? { shared_dir: this.sharedDir } : {},
+      metric: { name: this.cfg.metric.name, direction: this.cfg.metric.direction, target: this.cfg.metric.target },
+      baseline: this.baseline.metric,
+      own_best: w.best,
+      budget: this.budgetView(),
+      session: { index: a.session, evals_used: sv.evals_used, eval_quota: sv.eval_quota, exhausted },
+      lessons_unread: boardOn ? this.lessons.filter((l) => l.bseq != null && l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0
+    };
+  }
+  /** Context files are copied next to the writer's work dir at init, so every path a writer needs shares one prefix. */
+  contextPaths(writerId) {
+    return this.cfg.context_files.map((f) => {
+      const copy = path4.join(this.writerDir(writerId), "context", f);
+      return fs4.existsSync(copy) ? copy : path4.resolve(this.file.project_dir, f);
+    });
+  }
+  writeAgentMap(agentId, agentType, w, session) {
+    if (!/^[A-Za-z0-9_.-]+$/.test(agentId)) return;
+    const dir = path4.join(this.dir, "agents");
+    fs4.mkdirSync(dir, { recursive: true });
+    writeJson(path4.join(dir, agentId + ".json"), {
+      agent_id: agentId,
+      agent_type: agentType,
+      run_id: this.id,
+      run_dir: this.dir,
+      writer_id: w.id,
+      session,
+      mode: this.cfg.mode,
+      start_ms: this.startMs,
+      writer_dir: this.writerDir(w.id),
+      context_files: this.cfg.context_files.map((f) => path4.resolve(this.file.project_dir, f)),
+      shared_dir: this.cfg.shared.enabled ? this.sharedDir : null
+    });
+  }
+  // ---------- evaluate ----------
+  async evaluate(a) {
+    const w = this.writer(a.writer_id);
+    this.checkIdentity(w.id, a.agent_id);
+    this.tick();
+    if (this.state === "closed") throw new HostError("run_closed", "The run is closed; no new candidates are accepted. Finish your notes and return.", { budget: this.budgetView() });
+    if (w.current < 0) throw new HostError("not_joined", "Call join before evaluate.");
+    const s = this.sessionOf(w, w.current);
+    const quota = this.cfg.session.eval_quota;
+    if (s.counted + s.pending >= quota + this.cfg.session.grace) throw new HostError("hand_off_required", "This session has used its evaluation quota. Update your notes file and return your structured result; the next session continues from your notes.", { session: this.sessionView(w) });
+    if (w.pending.size >= this.cfg.eval.max_pending) throw new HostError("too_many_pending", `You already have ${w.pending.size} unfinished evaluation(s). Call get_result on them first.`, { pending: [...w.pending] });
+    if (w.candCount >= this.cfg.eval.max_candidates) throw new HostError("candidate_limit", `You reached the limit of ${this.cfg.eval.max_candidates} candidates for this run.`);
+    const note = String(a.note ?? "").replace(/\s+/g, " ").slice(0, 200);
+    const waitUntil = Date.now() + this.cfg.eval.block_s * 1e3;
+    while (this.evalsLimit != null && this.state === "open" && this.counted + this.inFlight() >= this.evalsLimit) {
+      const left = waitUntil - Date.now();
+      if (left <= 0) throw new HostError("budget_reserved", "The remaining evaluation budget is held by evaluations still in flight. Call evaluate again shortly.", { budget: this.budgetView() });
+      let timer;
+      await Promise.race([new Promise((r) => this.slotWaiters.push(r)), new Promise((r) => timer = setTimeout(r, left))]);
+      clearTimeout(timer);
+    }
+    if (this.state === "closed") throw new HostError("run_closed", "The run is closed; no new candidates are accepted. Finish your notes and return.", { budget: this.budgetView() });
+    const work = this.workDir(w.id);
+    const rels = matchFiles(work, this.cfg.candidate.files);
+    if (!rels.length) throw new HostError("empty_candidate", `No candidate files found in ${work}. Expected: ${this.cfg.candidate.files.join(", ")}`);
+    const blobs = readBlobs(work, rels);
+    const bytes = blobs.reduce((n, b) => n + b.data.length, 0);
+    if (bytes > this.cfg.candidate.max_bytes) throw new HostError("too_large", `Candidate is ${bytes} bytes; the limit is ${this.cfg.candidate.max_bytes}.`);
+    const hash = hashBlobs(blobs);
+    const dup = w.hashes.get(hash);
+    if (dup) {
+      const c = this.cands.get(dup);
+      if (c.status === "pending") return { cand_id: dup, status: "running", duplicate_of: dup, queue_position: this.queuePosition(dup) };
+      return { ...this.resultView(c, w, false), duplicate_of: dup, hint: `Identical to your earlier candidate ${dup}; not re-evaluated.` };
+    }
+    const candId = "c" + pad(++this.candSeq);
+    writeBlobs(path4.join(this.candDir(candId), "src"), blobs);
+    this.submitMs.set(candId, this.clock.now());
+    this.waiters.set(candId, new Deferred());
+    this.emit("eval_submitted", { cand_id: candId, writer_id: w.id, session: w.current, hash, note, bytes });
+    if (this.agentMode) {
+      this.finish(this.cands.get(candId), { status: "recorded", metric: null, detail: "Checkpoint recorded. There is no automatic evaluator in this run.", eval_s: 0, log: "" }, 0, hash);
+      return this.resultView(this.cands.get(candId), w, true);
+    }
+    void this.admit(candId);
+    return this.await(candId, w, this.cfg.eval.block_s);
+  }
+  async getResult(a) {
+    const w = this.writer(a.writer_id);
+    this.checkIdentity(w.id, a.agent_id);
+    const c = this.cands.get(a.cand_id);
+    if (!c || c.writer_id !== w.id) throw new HostError("unknown_candidate", `${a.cand_id} is not one of your candidates.`);
+    const wait = typeof a.wait_s === "number" && a.wait_s >= 0 ? Math.min(a.wait_s, 1500) : this.cfg.eval.block_s;
+    return this.await(c.cand_id, w, wait);
+  }
+  async await(candId, w, waitS) {
+    const c = this.cands.get(candId);
+    const d = this.waiters.get(candId);
+    if (c.status === "pending" && d) {
+      let timer;
+      await Promise.race([d.promise, new Promise((r) => timer = setTimeout(r, waitS * 1e3))]);
+      clearTimeout(timer);
+    }
+    if (c.status === "pending") return { cand_id: candId, status: "running", queue_position: this.queuePosition(candId), budget: this.budgetView(), hint: "Still running. Call get_result with this cand_id." };
+    return this.resultView(c, w, true);
+  }
+  queuePosition(candId) {
+    const snapshot = new Map([...this.queues].map(([k, v]) => [k, [...v]]));
+    let last = this.lastServed;
+    let pos = 0;
+    for (; ; ) {
+      let found = null;
+      for (let i = 1; i <= this.writerIds.length; i++) {
+        const idx = (last + i) % this.writerIds.length;
+        const q = snapshot.get(this.writerIds[idx]);
+        if (q.length) {
+          found = q.shift();
+          last = idx;
+          break;
+        }
+      }
+      if (!found) return 0;
+      if (found === candId) return pos + 1;
+      pos++;
+    }
+  }
+  resultView(c, w, deliver) {
+    this.tick();
+    const out = {
+      cand_id: c.cand_id,
+      status: c.status,
+      metric: c.metric,
+      detail: c.detail,
+      reference: c.reference,
+      gain: c.gain == null ? null : round(c.gain, 4),
+      is_own_best: c.is_own_best,
+      verified_gain: c.verified_gain,
+      reached_target: c.reached_target,
+      own_best: w.best,
+      queue_wait_s: c.queue_wait_s,
+      eval_s: c.eval_s,
+      budget: this.budgetView(),
+      session: this.sessionView(w)
+    };
+    if (this.cfg.board.enabled) out.pushed_lessons = deliver ? this.deliver(w, c.cand_id) : [];
+    const sv = this.sessionView(w);
+    const hints = [];
+    if (c.status === "infra_error") hints.push("The evaluator itself failed (not your candidate). This did not use budget; you may resubmit after a small change, or continue.");
+    if (c.status === "recorded" && this.cfg.board.enabled && this.state === "open") hints.push(`Checkpoint ${c.cand_id} recorded. If it contains a new insight, post a lesson attached to it.`);
+    if (c.verified_gain && this.cfg.board.enabled && this.state === "open" && c.lessons === 0) hints.push(`This candidate is a verified gain. Post a lesson attached to ${c.cand_id} so teammates receive it.`);
+    if (this.state === "closed") hints.push("The run is closed. Finish your notes and return your structured result.");
+    else if (sv.must_hand_off) hints.push("Session quota reached (must_hand_off). Update your notes file and return your structured result.");
+    if (hints.length) out.hint = hints.join(" ");
+    return out;
+  }
+  /** Piggy-back pushed lessons from other writers on a finished evaluation result (section 6.6). */
+  deliver(w, candId) {
+    const out = [];
+    for (const l of this.board()) {
+      if (out.length >= this.cfg.push.max_per_delivery) break;
+      if (!l.pushed || l.writer_id === w.id || w.delivered.has(l.lesson_id)) continue;
+      this.emit("lesson_delivered", { lesson_id: l.lesson_id, to: w.id, with_cand: candId, chars: l.text.length });
+      out.push({ lesson_id: l.lesson_id, header: l.header, text: l.text });
+    }
+    return out;
+  }
+  /** Lessons visible on the board, in board order. Under agent verification a lesson appears only after its verdict. */
+  board() {
+    return this.lessons.filter((l) => l.bseq != null).sort((a, b) => a.bseq - b.bseq);
+  }
+  // ---------- queue ----------
+  async admit(candId) {
+    const c = this.cands.get(candId);
+    const pre = this.cfg.eval.precheck;
+    if (pre) {
+      if (this.prechecking >= this.cfg.eval.precheck_concurrency) await new Promise((r2) => this.precheckWait.push(r2));
+      this.prechecking++;
+      let o;
+      try {
+        o = await this.evalFn({ kind: "precheck", candidate_dir: path4.join(this.candDir(candId), "src"), run_dir: this.dir, cand_id: candId });
+      } catch (e) {
+        o = { status: "infra_error", metric: null, detail: "precheck crashed: " + e.message, eval_s: 0, log: String(e) };
+      }
+      this.prechecking--;
+      this.precheckWait.shift()?.();
+      const r = interpretPrecheck(o);
+      if (!r.pass) {
+        this.safeWrite(path4.join(this.candDir(candId), "precheck.log"), o.log);
+        this.finish(c, { status: "build_error", metric: null, detail: r.detail || "precheck failed", eval_s: o.eval_s, log: o.log }, 0, null);
+        return;
+      }
+    }
+    this.queues.get(c.writer_id).push(candId);
+    this.pump();
+  }
+  pickNext() {
+    const n = this.writerIds.length;
+    for (let i = 1; i <= n; i++) {
+      const idx = (this.lastServed + i) % n;
+      const q = this.queues.get(this.writerIds[idx]);
+      if (q.length) {
+        this.lastServed = idx;
+        return q.shift();
+      }
+    }
+    return null;
+  }
+  pump() {
+    while (this.running < this.cfg.eval.concurrency) {
+      const next = this.pickNext();
+      if (!next) break;
+      this.running++;
+      void this.execute(next).finally(() => {
+        this.running--;
+        this.pump();
+        this.checkIdle();
+      });
+    }
+    this.checkIdle();
+  }
+  safeWrite(file, data) {
+    try {
+      fs4.mkdirSync(path4.dirname(file), { recursive: true });
+      fs4.writeFileSync(file, data);
+    } catch {
+    }
+  }
+  async evalWithRetry(candDir, candId) {
+    const ctx = { kind: "eval", candidate_dir: path4.join(candDir, "src"), run_dir: this.dir, cand_id: candId };
+    let o;
+    let log = "";
+    for (let attempt = 0; ; attempt++) {
+      try {
+        o = await this.evalFn(ctx);
+      } catch (e) {
+        o = { status: "infra_error", metric: null, detail: "evaluator crashed: " + e.message, eval_s: 0, log: String(e) };
+      }
+      log += (attempt ? "\n=== retry ===\n" : "") + o.log;
+      if (o.status !== "infra_error" || attempt >= 1) break;
+    }
+    return { ...o, log };
+  }
+  async execute(candId) {
+    const c = this.cands.get(candId);
+    const startMs = this.clock.now();
+    const queueWait = Math.max(0, (startMs - (this.submitMs.get(candId) ?? startMs)) / 1e3);
+    const dir = this.candDir(candId);
+    let evaluatedHash = null;
+    let o;
+    if (!fs4.existsSync(path4.join(dir, "src"))) o = { status: "infra_error", metric: null, detail: "candidate snapshot is missing", eval_s: 0, log: "" };
+    else {
+      evaluatedHash = hashDir(path4.join(dir, "src"));
+      o = await this.evalWithRetry(dir, candId);
+    }
+    this.safeWrite(path4.join(dir, "eval.log"), o.log);
+    this.finish(c, o, queueWait, evaluatedHash);
+  }
+  /**
+   * Without an evaluation command there is nothing to replay. The run is closed, every writer's work directory is
+   * frozen as a final snapshot, and a judge agent ranks the finals against the task criteria.
+   */
+  async confirmJudged(ranking, reportPath) {
+    this.close("confirm");
+    await this.idle();
+    const finals = this.writerIds.map((id) => {
+      const dst = path4.join(this.candDir("final-" + id), "src");
+      if (!fs4.existsSync(dst)) {
+        const rels = matchFiles(this.workDir(id), this.cfg.candidate.files);
+        let blobs = readBlobs(this.workDir(id), rels);
+        if (blobs.reduce((n, b) => n + b.data.length, 0) > this.cfg.candidate.max_bytes) blobs = [];
+        writeBlobs(dst, blobs);
+        this.emit("final_snapshot", { writer_id: id, cand_id: "final-" + id, files: blobs.length });
+      }
+      return { writer_id: id, final_dir: dst, files: matchFiles(dst, ["**"]), notes_path: path4.join(this.writerDir(id), "NOTES.md") };
+    });
+    if (ranking == null) return { needs_ranking: true, run_id: this.id, goal: this.cfg.goal, criteria: this.cfg.criteria, finals, instructions: "Read every final_dir. Judge each result against the goal and criteria: check it yourself, do not trust claims. Then call confirm again with ranking: [{writer_id, score (0-10), reason (one sentence)}] for every writer, best first." };
+    if (!Array.isArray(ranking) || !ranking.length) throw new ArgError("ranking must be a non-empty array of {writer_id, score, reason}");
+    const clean = ranking.map((r) => {
+      if (!r || !this.writers.has(r.writer_id)) throw new ArgError(`ranking: unknown writer_id ${JSON.stringify(r?.writer_id)}`);
+      if (typeof r.score !== "number" || !Number.isFinite(r.score)) throw new ArgError("ranking: score must be a number");
+      return { writer_id: r.writer_id, score: r.score, reason: String(r.reason ?? "").replace(/\s+/g, " ").slice(0, 400) };
+    });
+    clean.sort((x, y) => y.score - x.score);
+    const top = clean[0];
+    const winnerDir = path4.join(this.dir, "winner");
+    fs4.rmSync(winnerDir, { recursive: true, force: true });
+    copyDir(path4.join(this.candDir("final-" + top.writer_id), "src"), winnerDir);
+    this.emit("run_confirmed", { winner: "final-" + top.writer_id, winner_writer: top.writer_id, judged: true, ranking: clean });
+    const report = buildReport(this.dir);
+    writeJson(reportPath, report);
+    fs4.writeFileSync(path4.join(this.dir, "report.md"), renderReportMd(report));
+    return report;
+  }
+  /** Judge a finished evaluation: verified gain, bests, budget, target. */
+  finish(c, o, queueWaitS, evaluatedHash) {
+    const w = this.writers.get(c.writer_id);
+    const ok = o.status === "ok" && o.metric != null;
+    const m = ok ? o.metric : null;
+    let ref = w.best ? w.best.metric : this.baseline.status === "ok" ? this.baseline.metric : null;
+    if (this.cfg.gate.reference === "team_best_seen" && w.bestSeen != null && (ref == null || this.better(w.bestSeen, ref))) ref = w.bestSeen;
+    let gain = null;
+    if (ok && ref != null && ref !== 0) gain = this.cfg.metric.direction === "min" ? (ref - m) / ref : (m - ref) / Math.abs(ref);
+    const verified = ok && gain != null && gain >= this.cfg.metric.min_gain - 1e-12;
+    const isOwnBest = ok && (w.best == null || this.better(m, w.best.metric));
+    const isTeamBest = ok && (this.teamBest == null || this.better(m, this.teamBest.metric));
+    const counted = o.status === "ok" || o.status === "incorrect" || o.status === "recorded";
+    const reached = ok && this.meetsTarget(m);
+    const result = { cand_id: c.cand_id, writer_id: c.writer_id, session: c.session, status: o.status, metric: m, detail: o.detail, reference: ref, gain, verified_gain: verified, is_own_best: isOwnBest, is_team_best: isTeamBest, reached_target: reached, counted, queue_wait_s: round(queueWaitS, 2), eval_s: round(o.eval_s, 2), hash: c.hash, evaluated_hash: evaluatedHash };
+    writeJson(path4.join(this.candDir(c.cand_id), "result.json"), result);
+    this.emit("eval_result", result);
+    if (this.cfg.shared.enabled) this.publishShared(c);
+    if (this.state === "open") {
+      if (reached && this.cfg.stop.on_target) this.close("target");
+      else if (this.evalsLimit != null && this.counted >= this.evalsLimit) this.close("evals");
+      else this.tick();
+    }
+    this.submitMs.delete(c.cand_id);
+    const d = this.waiters.get(c.cand_id);
+    this.waiters.delete(c.cand_id);
+    d?.resolve();
+    for (const r of this.slotWaiters.splice(0)) r();
+    this.checkIdle();
+  }
+  publishShared(c) {
+    try {
+      copyDir(path4.join(this.candDir(c.cand_id), "src"), path4.join(this.sharedDir, c.writer_id, c.cand_id));
+      const minute = round((this.clock.now() - this.startMs) / 6e4, 2);
+      fs4.appendFileSync(path4.join(this.sharedDir, "index.tsv"), [c.writer_id, c.cand_id, minute, c.status, c.metric ?? ""].join("	") + "\n");
+    } catch (e) {
+      this.log("shared publish failed: " + e.message);
+    }
+  }
+  inFlight() {
+    let n = 0;
+    for (const w of this.writers.values()) n += w.pending.size;
+    return n;
+  }
+  busy() {
+    return this.running > 0 || this.prechecking > 0 || [...this.cands.values()].some((c) => c.status === "pending");
+  }
+  checkIdle() {
+    if (!this.busy()) for (const r of this.idleWaiters.splice(0)) r();
+  }
+  idle() {
+    if (!this.busy()) return Promise.resolve();
+    return new Promise((r) => this.idleWaiters.push(r));
+  }
+  // ---------- lessons ----------
+  postLesson(a) {
+    const w = this.writer(a.writer_id);
+    this.checkIdentity(w.id, a.agent_id);
+    if (typeof a.text !== "string") throw new ArgError("text is required");
+    if (typeof a.cand_id !== "string") throw new ArgError("cand_id is required");
+    const text = a.text.trim();
+    const reject = (error, message) => {
+      this.emit("lesson_rejected", { writer_id: w.id, cand_id: a.cand_id, error, chars: text.length });
+      return { error, message };
+    };
+    this.tick();
+    if (this.state === "closed") return reject("run_closed", "The run is closed; lessons are no longer accepted.");
+    if (!this.cfg.board.enabled) return reject("board_disabled", `The lesson board is disabled in ${this.cfg.mode} mode.`);
+    const c = this.cands.get(a.cand_id);
+    if (!c || c.writer_id !== w.id || c.status === "pending") return reject("unknown_candidate", `${a.cand_id} is not one of your evaluated candidates. Attach the lesson to a candidate of yours whose evaluation has finished.`);
+    if (!text) return reject("empty", "The lesson text is empty.");
+    const bad = validateLessonText(text, this.cfg.lesson);
+    if (bad) return reject(bad, REJECT_MESSAGE);
+    if (this.cfg.lesson.max_copy_chars > 0) {
+      const texts = [];
+      for (const d of [path4.join(this.candDir(c.cand_id), "src"), this.workDir(w.id)]) for (const b of safeBlobs(d, this.cfg.candidate.files)) texts.push(b);
+      if (copiesFromWork(text, texts, this.cfg.lesson.max_copy_chars)) return reject("contains_solution", COPY_MESSAGE);
+    }
+    if (w.lessonTexts.has(text)) return reject("duplicate", "You already posted this exact lesson.");
+    if (c.lessons >= this.cfg.lesson.max_per_candidate) return reject("too_many_for_candidate", `${c.cand_id} already has ${c.lessons} lesson(s); the limit is ${this.cfg.lesson.max_per_candidate}. Attach new findings to a newer candidate.`);
+    const evidence = { status: c.status, metric: c.metric, reference: c.reference, gain: c.gain == null ? null : round(c.gain, 4), verified_gain: c.verified_gain };
+    const policy = this.cfg.push.policy;
+    const pushed = !this.agentMode && (policy === "all" || policy === "verified" && c.verified_gain && c.lessons === 0);
+    const seq = this.lessons.length + 1;
+    const lesson = {
+      lesson_id: "L" + pad(seq),
+      seq,
+      writer_id: w.id,
+      cand_id: c.cand_id,
+      minute: round((this.clock.now() - this.startMs) / 6e4, 2),
+      evidence,
+      header: this.agentMode ? verdictHeader(w.id, c.cand_id, "pending", "") : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
+      text,
+      pushed,
+      bseq: this.agentMode ? null : seq,
+      verdict: this.agentMode ? "pending" : null,
+      verdict_note: ""
+    };
+    appendLineSync(this.lessonsPath, lesson);
+    this.lessonStore.set(lesson.lesson_id, lesson);
+    this.emit("lesson_posted", { lesson_id: lesson.lesson_id, seq, writer_id: w.id, cand_id: c.cand_id, chars: text.length, pushed });
+    for (const r of this.lessonWaiters.splice(0)) r();
+    if (this.agentMode) return { lesson_id: lesson.lesson_id, pushed: false, status: "pending_verification", header: lesson.header, hint: "The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working." };
+    return { lesson_id: lesson.lesson_id, pushed, header: lesson.header };
+  }
+  readLessons(a) {
+    const w = this.writer(a.writer_id);
+    this.checkIdentity(w.id, a.agent_id);
+    if (!this.cfg.board.enabled) return { error: "board_disabled", message: `The lesson board is disabled in ${this.cfg.mode} mode.` };
+    if (this.cfg.read.require_own_correct && !w.best) return { error: "locked", message: "The board unlocks once you have your own correct candidate. Get one first." };
+    const cursor = Number.isInteger(a.cursor) && a.cursor >= 0 ? a.cursor : 0;
+    const limit = Math.min(20, Math.max(1, Number.isInteger(a.limit) ? a.limit : 10));
+    const board = this.board();
+    const others = board.filter((l) => l.bseq > cursor && l.writer_id !== w.id);
+    const page = others.slice(0, limit);
+    const next = page.length ? page[page.length - 1].bseq : Math.max(cursor, board.length ? board[board.length - 1].bseq : cursor);
+    const view = page.map((l) => ({ lesson_id: l.lesson_id, seq: l.bseq, header: l.header, text: l.text, pushed: l.pushed, already_delivered: w.delivered.has(l.lesson_id) }));
+    this.emit("lessons_read", { writer_id: w.id, from_seq: cursor, to_seq: next, count: page.length, chars: page.reduce((n, l) => n + l.text.length, 0), has_own_correct: !!w.best });
+    return { lessons: view, next_cursor: next, remaining: others.length - page.length };
+  }
+  // ---------- verifier agent (agent verification) ----------
+  registerVerifier(agentId, agentType) {
+    if (typeof agentId !== "string" || !/^[A-Za-z0-9_.-]+$/.test(agentId) || this.agents.has(agentId)) return;
+    const dir = path4.join(this.dir, "agents");
+    const f = path4.join(dir, agentId + ".json");
+    if (fs4.existsSync(f)) return;
+    fs4.mkdirSync(path4.join(this.dir, "verifier"), { recursive: true });
+    fs4.mkdirSync(dir, { recursive: true });
+    writeJson(f, { agent_id: agentId, agent_type: agentType ?? null, role: "verifier", run_id: this.id, run_dir: this.dir, start_ms: this.startMs, scratch_dir: path4.join(this.dir, "verifier"), context_files: this.cfg.context_files.map((x) => path4.resolve(this.file.project_dir, x)) });
+  }
+  verifierGuard(agentId) {
+    if (!this.agentMode) throw new HostError("no_verifier", "This run gates lessons with an evaluation command; there is no verifier agent.");
+    if (this.writerOfAgent(agentId)) throw new HostError("forbidden", "writers cannot verify lessons");
+  }
+  /** Hand the verifier the oldest lesson that still needs a verdict; waits when there is none. */
+  async nextLesson(a) {
+    this.verifierGuard(a.agent_id);
+    if (!Number.isInteger(a.session) || a.session < 0) throw new ArgError("session must be a non-negative integer");
+    if (!this.verifierSessions.has(a.session) || a.agent_id && !this.verifierAgents.has(a.agent_id)) this.emit("verifier_join", { session: a.session, agent_id: a.agent_id ?? null });
+    const quota = this.cfg.verifier.session_quota;
+    const sess = () => ({ index: a.session, verdicts: this.verifierSessions.get(a.session).verdicts, quota });
+    const waitS = typeof a.wait_s === "number" && a.wait_s >= 0 ? Math.min(a.wait_s, 1500) : this.cfg.verifier.wait_s;
+    const until = Date.now() + waitS * 1e3;
+    for (; ; ) {
+      this.tick();
+      if (this.state === "closed") return { run_closed: true, message: "The run is closed. Return your structured result now.", session: sess() };
+      if (sess().verdicts >= quota || this.verifierCurrent > a.session) return { must_hand_off: true, message: "This verifier session is used up. Return your structured result; the next session continues.", session: sess() };
+      const now = this.clock.now();
+      const l = this.lessons.find((x) => x.verdict === "pending" && (this.assigned.get(x.lesson_id) ?? 0) < now - 15 * 6e4);
+      if (l) {
+        this.assigned.set(l.lesson_id, now);
+        return {
+          lesson: { lesson_id: l.lesson_id, writer_id: l.writer_id, cand_id: l.cand_id, minute: l.minute, text: l.text },
+          author_checkpoint_dir: path4.join(this.candDir(l.cand_id), "src"),
+          author_work_dir: this.workDir(l.writer_id),
+          author_notes_path: path4.join(this.writerDir(l.writer_id), "NOTES.md"),
+          goal: this.cfg.goal,
+          criteria: this.cfg.criteria,
+          context_files: this.cfg.context_files.map((x) => path4.resolve(this.file.project_dir, x)),
+          scratch_dir: path4.join(this.dir, "verifier"),
+          pending: this.lessons.filter((x) => x.verdict === "pending").length,
+          budget: this.budgetView(),
+          session: sess()
+        };
+      }
+      const left = until - Date.now();
+      if (left <= 0) return { none: true, message: "No lesson is waiting. Call next_lesson again.", budget: this.budgetView(), session: sess() };
+      let timer;
+      await Promise.race([new Promise((r) => this.lessonWaiters.push(r)), new Promise((r) => timer = setTimeout(r, Math.min(left, 2e3)))]);
+      clearTimeout(timer);
+    }
+  }
+  verdict(a) {
+    this.verifierGuard(a.agent_id);
+    const l = this.lessonStore.get(a.lesson_id);
+    if (!l || !this.lessons.includes(l)) throw new HostError("unknown_lesson", `no lesson ${a.lesson_id}`);
+    if (l.verdict !== "pending") throw new HostError("already_decided", `${l.lesson_id} already has the verdict "${l.verdict}"`);
+    if (!["verified", "unverified", "refuted", "withheld"].includes(a.verdict)) throw new ArgError("verdict must be one of verified, unverified, refuted, withheld");
+    const note = String(a.note ?? "").replace(/\s+/g, " ").trim();
+    if (!note) throw new HostError("note_required", "Give a one-sentence note saying what you checked and what you found.");
+    if (note.length > this.cfg.verifier.note_max_chars) throw new HostError("note_too_long", `The note is limited to ${this.cfg.verifier.note_max_chars} characters. The verifier reports a verdict; it does not rewrite or extend lessons.`);
+    if (note.includes("```") || note.includes("~~~")) throw new HostError("note_has_code", "The note is one plain sentence without code.");
+    const verdict = a.verdict;
+    const policy = this.cfg.push.policy;
+    const visible = verdict !== "withheld";
+    const pushed = visible && policy !== "none" && (verdict === "verified" || policy === "all");
+    const bseq = visible ? this.bseqMax + 1 : null;
+    const header = verdictHeader(l.writer_id, l.cand_id, verdict, note);
+    this.emit("lesson_verdict", { lesson_id: l.lesson_id, writer_id: l.writer_id, verdict, note, pushed, bseq, header, session: this.verifierCurrent, agent_id: a.agent_id ?? null });
+    return { lesson_id: l.lesson_id, verdict, pushed, pending: this.lessons.filter((x) => x.verdict === "pending").length };
+  }
+  // ---------- status ----------
+  status(writerId) {
+    this.tick();
+    if (writerId) {
+      const w = this.writer(writerId);
+      return { run_id: this.id, mode: this.cfg.mode, writer_id: w.id, own_best: w.best, candidates: w.candCount, pending: [...w.pending], budget: this.budgetView(), session: this.sessionView(w), baseline: this.baseline.metric, metric: this.cfg.metric };
+    }
+    const count = (st) => [...this.cands.values()].filter((c) => c.status === st).length;
+    return {
+      run_id: this.id,
+      run_dir: this.dir,
+      mode: this.cfg.mode,
+      n: this.cfg.n,
+      budget: this.budgetView(),
+      closed_reason: this.closedReason,
+      confirmed: this.confirmed,
+      baseline: this.baseline.metric,
+      metric: this.cfg.metric,
+      team_best: this.teamBest,
+      writers: this.writerIds.map((id) => {
+        const w = this.writers.get(id);
+        return { writer_id: id, best: w.best, candidates: w.candCount, session: w.current, pending: w.pending.size };
+      }),
+      evals: { ok: count("ok"), incorrect: count("incorrect"), build_error: count("build_error"), infra_error: count("infra_error"), pending: count("pending"), counted: this.counted },
+      lessons: { posted: this.lessons.length, pushed: this.lessons.filter((l) => l.pushed).length, ...this.agentMode ? { pending: this.lessons.filter((l) => l.verdict === "pending").length } : {} },
+      queue_length: [...this.queues.values()].reduce((n, q) => n + q.length, 0) + this.running
+    };
+  }
+  // ---------- confirm ----------
+  confirm(a) {
+    if (!this.confirming) this.confirming = this.doConfirm(a).finally(() => this.confirming = null);
+    return this.confirming;
+  }
+  async doConfirm(a) {
+    const reportPath = path4.join(this.dir, "report.json");
+    if (this.confirmed && fs4.existsSync(reportPath)) return readJson(reportPath);
+    if (this.agentMode) return this.confirmJudged(a.ranking, reportPath);
+    const topK = Number.isInteger(a.top_k) && a.top_k > 0 ? a.top_k : this.cfg.confirm.top_k;
+    const replays = Number.isInteger(a.replays) && a.replays > 0 ? a.replays : this.cfg.confirm.replays;
+    this.close("confirm");
+    await this.idle();
+    const seen = /* @__PURE__ */ new Set();
+    const ranked = [...this.cands.values()].filter((c) => c.status === "ok" && c.metric != null).sort((x, y) => x.metric === y.metric ? x.cand_id.localeCompare(y.cand_id) : this.better(x.metric, y.metric) ? -1 : 1).filter((c) => seen.has(c.hash) ? false : (seen.add(c.hash), true));
+    const confirmedList = [];
+    const checked = [];
+    for (const c of ranked.slice(0, this.cfg.confirm.max_candidates)) {
+      if (confirmedList.length >= topK) break;
+      const rs = [];
+      for (let i = 0; i < replays; i++) {
+        const o = await this.evalWithRetry(this.candDir(c.cand_id), c.cand_id);
+        const m = o.status === "ok" ? o.metric : null;
+        this.emit("confirm_replay", { cand_id: c.cand_id, replay: i + 1, status: o.status, metric: m });
+        rs.push({ status: o.status, metric: m });
+        if (o.status !== "ok") break;
+      }
+      const allOk = rs.length === replays && rs.every((r) => r.status === "ok");
+      checked.push({ cand_id: c.cand_id, confirmed: allOk, replays: rs });
+      if (allOk) confirmedList.push({ cand: c, metric: median(rs.map((r) => r.metric)), replays: rs.map((r) => r.metric) });
+    }
+    confirmedList.sort((x, y) => x.metric === y.metric ? 0 : this.better(x.metric, y.metric) ? -1 : 1);
+    const win = confirmedList[0] ?? null;
+    const winnerDir = path4.join(this.dir, "winner");
+    fs4.rmSync(winnerDir, { recursive: true, force: true });
+    if (win) copyDir(path4.join(this.candDir(win.cand.cand_id), "src"), winnerDir);
+    this.emit("run_confirmed", { winner: win ? win.cand.cand_id : null, confirmed_metric: win ? win.metric : null, replays: win ? win.replays : [], checked });
+    const report = buildReport(this.dir);
+    writeJson(reportPath, report);
+    fs4.writeFileSync(path4.join(this.dir, "report.md"), renderReportMd(report));
+    return report;
+  }
+};
+
+// src/core/host.ts
+function commandEvalFn(cfg, projectDir2) {
+  return (ctx) => {
+    const spec = ctx.kind === "precheck" ? { ...cfg.eval, ...cfg.eval.precheck } : cfg.eval;
+    return runCommand({ command: spec.command, cwd: spec.cwd, timeout_s: spec.timeout_s }, path5.resolve(projectDir2, spec.cwd), { candidate_dir: ctx.candidate_dir, run_dir: ctx.run_dir, cand_id: ctx.cand_id });
+  };
+}
+var str = (a, k, required = true) => {
+  if (a[k] == null) {
+    if (required) throw new ArgError(`${k} is required`);
+    return void 0;
+  }
+  if (typeof a[k] !== "string") throw new ArgError(`${k} must be a string`);
+  return a[k];
+};
+var num = (a, k) => {
+  if (a[k] == null) return void 0;
+  const v = typeof a[k] === "string" && a[k].trim() !== "" ? Number(a[k]) : a[k];
+  if (typeof v !== "number" || !Number.isFinite(v)) throw new ArgError(`${k} must be a number`);
+  return v;
+};
+var Host = class {
+  projectDir;
+  clock;
+  evalFactory;
+  runs = /* @__PURE__ */ new Map();
+  locks = /* @__PURE__ */ new Set();
+  constructor(opts) {
+    this.projectDir = fs5.realpathSync(opts.projectDir);
+    this.clock = opts.clock ?? realClock;
+    this.evalFactory = opts.evalFactory ?? commandEvalFn;
+  }
+  get runsDir() {
+    return path5.join(this.projectDir, ".lessonshare", "runs");
+  }
+  /** Dispatch one tool call. Business refusals come back as {error, message}; ArgError propagates. */
+  async call(tool, args) {
+    const a = isObj(args) ? args : {};
+    try {
+      switch (tool) {
+        case "init_run":
+          return await this.initRun(a);
+        case "join":
+          return this.run(a).join({ writer_id: str(a, "writer_id"), session: num(a, "session") ?? 0, agent_id: a._harness_agent_id, agent_type: a._harness_agent_type });
+        case "evaluate":
+          return await this.run(a).evaluate({ writer_id: str(a, "writer_id"), note: str(a, "note", false), agent_id: a._harness_agent_id });
+        case "get_result":
+          return await this.run(a).getResult({ writer_id: str(a, "writer_id"), cand_id: str(a, "cand_id"), wait_s: num(a, "wait_s"), agent_id: a._harness_agent_id });
+        case "post_lesson":
+          return this.run(a).postLesson({ writer_id: str(a, "writer_id"), cand_id: str(a, "cand_id"), text: str(a, "text"), agent_id: a._harness_agent_id });
+        case "read_lessons":
+          return this.run(a).readLessons({ writer_id: str(a, "writer_id"), cursor: num(a, "cursor"), limit: num(a, "limit"), agent_id: a._harness_agent_id });
+        case "status": {
+          const run = this.run(a);
+          const forced = run.writerOfAgent(a._harness_agent_id);
+          const wid = str(a, "writer_id", false);
+          if (forced && wid && wid !== forced) throw new HostError("identity_mismatch", `this agent is registered as ${forced}`);
+          return run.status(forced ?? wid);
+        }
+        case "confirm": {
+          const run = this.run(a);
+          if (run.writerOfAgent(a._harness_agent_id)) throw new HostError("forbidden", "writers cannot confirm a run");
+          this.maybeVerifier(run, a);
+          return await run.confirm({ top_k: num(a, "top_k"), replays: num(a, "replays"), ranking: a.ranking });
+        }
+        case "next_lesson": {
+          const run = this.run(a);
+          this.maybeVerifier(run, a);
+          return await run.nextLesson({ session: num(a, "session") ?? 0, wait_s: num(a, "wait_s"), agent_id: a._harness_agent_id });
+        }
+        case "verdict": {
+          const run = this.run(a);
+          this.maybeVerifier(run, a);
+          return run.verdict({ lesson_id: str(a, "lesson_id"), verdict: str(a, "verdict"), note: str(a, "note", false), agent_id: a._harness_agent_id });
+        }
+        default:
+          throw new ArgError(`unknown tool "${tool}"`);
+      }
+    } catch (e) {
+      if (e instanceof HostError) return { error: e.code, message: e.message, ...e.extra };
+      throw e;
+    }
+  }
+  /** Agents of a verifier type get a guard mapping (read the run, write only their scratch directory). */
+  maybeVerifier(run, a) {
+    if (typeof a._harness_agent_type === "string" && /^lessonshare[:-]verifier/.test(a._harness_agent_type)) run.registerVerifier(a._harness_agent_id, a._harness_agent_type);
+  }
+  tick() {
+    for (const r of this.runs.values()) r.tick();
+  }
+  // ---------- run registry, locking, recovery ----------
+  run(a) {
+    const id = str(a, "run_id");
+    if (!/^[A-Za-z0-9_.-]+$/.test(id)) throw new ArgError("invalid run_id");
+    const cached = this.runs.get(id);
+    if (cached) return cached;
+    const dir = path5.join(this.runsDir, id);
+    if (!fs5.existsSync(path5.join(dir, "run.json"))) throw new HostError("unknown_run", `no run "${id}" in ${this.runsDir}`);
+    this.lock(dir);
+    const file = readJson(path5.join(dir, "run.json"));
+    const run = new Run(dir, file, this.clock, this.evalFactory(file.config, this.projectDir));
+    run.recover();
+    run.log("run loaded from disk");
+    this.runs.set(id, run);
+    return run;
+  }
+  lock(dir) {
+    const f = path5.join(dir, "server.lock");
+    try {
+      const cur = readJson(f);
+      if (cur.pid !== process.pid) {
+        let alive = true;
+        try {
+          process.kill(cur.pid, 0);
+        } catch (e) {
+          alive = e.code === "EPERM";
+        }
+        if (alive) throw new HostError("run_locked", `run is owned by live process ${cur.pid}`);
+      }
+    } catch (e) {
+      if (e instanceof HostError) throw e;
+    }
+    writeJson(f, { pid: process.pid, started: new Date(this.clock.now()).toISOString() });
+    this.locks.add(f);
+  }
+  releaseLocks() {
+    for (const f of this.locks) {
+      try {
+        if (readJson(f).pid === process.pid) fs5.unlinkSync(f);
+      } catch {
+      }
+    }
+    this.locks.clear();
+  }
+  // ---------- init_run ----------
+  async initRun(a) {
+    const budget = isObj(a.budget) ? a.budget : {};
+    if (a.resume_run_id != null) {
+      const run2 = this.run({ run_id: a.resume_run_id });
+      const minutes = num(budget, "minutes") ?? run2.cfg.budget.minutes;
+      if (!(minutes > 0)) throw new ArgError("budget.minutes must be positive");
+      run2.reopen(minutes, num(budget, "evals") ?? null);
+      return this.initResult(run2, [`Run ${run2.id} reopened with ${minutes} more minute(s).`], true);
+    }
+    const taskPath = str(a, "task_path", false) ?? ".lessonshare/task.json";
+    const mode = str(a, "mode", false) ?? "lessonshare";
+    const n = num(a, "n") ?? 8;
+    const task = loadTaskFile(this.projectDir, taskPath);
+    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides);
+    const now = this.clock.now();
+    const ts = new Date(now).toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+    const runId = `r-${ts}-${crypto2.randomBytes(2).toString("hex").slice(0, 3)}`;
+    const dir = path5.join(this.runsDir, runId);
+    fs5.mkdirSync(path5.join(dir, "candidates"), { recursive: true });
+    this.lock(dir);
+    const agentMode = cfg.verify.kind === "agent";
+    const seedAbs = cfg.candidate.seed != null ? resolveInside(this.projectDir, cfg.candidate.seed, "candidate.seed") : null;
+    const ids = writerIds(n);
+    for (const id of ids) {
+      fs5.mkdirSync(path5.join(dir, "writers", id, "work"), { recursive: true });
+      if (seedAbs) copyDir(seedAbs, path5.join(dir, "writers", id, "work"));
+      for (const f of cfg.context_files) {
+        const src = resolveInside(this.projectDir, f, "context_files");
+        if (!fs5.existsSync(src) || !fs5.statSync(src).isFile()) throw new HostError("invalid_task", `context file "${f}" does not exist`);
+        const dst = path5.join(dir, "writers", id, "context", f);
+        fs5.mkdirSync(path5.dirname(dst), { recursive: true });
+        fs5.copyFileSync(src, dst);
+      }
+    }
+    if (cfg.shared.enabled) fs5.mkdirSync(path5.join(dir, "shared"), { recursive: true });
+    const evalFn = this.evalFactory(cfg, this.projectDir);
+    const warnings = [];
+    let baseline;
+    if (agentMode) {
+      baseline = { status: "none", metric: null, noise: null, runs: [] };
+      if (!cfg.criteria.trim()) warnings.push('No criteria given. The verifier and the final judge only have the goal to judge by; add "criteria" to the task file to say what a good result looks like.');
+    } else {
+      const seedSnap = path5.join(dir, "candidates", "seed", "src");
+      const seedFiles = matchFiles(seedAbs, cfg.candidate.files);
+      if (!seedFiles.length) throw new HostError("invalid_task", "candidate.files matches nothing in the seed directory");
+      writeBlobs(seedSnap, readBlobs(seedAbs, seedFiles));
+      const runs = [];
+      let log = "";
+      for (let i = 0; i < cfg.baseline_runs; i++) {
+        let o = await evalFn({ kind: "eval", candidate_dir: seedSnap, run_dir: dir, cand_id: "seed" });
+        if (o.status === "infra_error") o = await evalFn({ kind: "eval", candidate_dir: seedSnap, run_dir: dir, cand_id: "seed" });
+        log += `=== baseline run ${i + 1} ===
+${o.log}
+`;
+        runs.push({ status: o.status, metric: o.status === "ok" ? o.metric : null });
+        if (o.status === "infra_error") {
+          fs5.writeFileSync(path5.join(dir, "candidates", "seed", "eval.log"), log);
+          this.releaseOne(dir);
+          throw new HostError("baseline_infra_error", `The evaluator failed on the seed candidate: ${o.detail}`, { eval_log_tail: tailLines(o.log, 40) });
+        }
+      }
+      fs5.writeFileSync(path5.join(dir, "candidates", "seed", "eval.log"), log);
+      if (runs.every((r) => r.status === "ok")) {
+        const ms = runs.map((r) => r.metric);
+        const med = median(ms);
+        const noise = med !== 0 ? round((Math.max(...ms) - Math.min(...ms)) / Math.abs(med), 5) : 0;
+        baseline = { status: "ok", metric: med, noise, runs };
+        if (noise >= cfg.metric.min_gain) warnings.push(`Evaluation noise (${(noise * 100).toFixed(2)}%) is not below metric.min_gain (${(cfg.metric.min_gain * 100).toFixed(2)}%). Noise may be pushed as verified gains. Suggested min_gain: ${Math.max(0.01, round(2 * noise, 4))}. The host did not change it.`);
+      } else {
+        const bad = runs.find((r) => r.status !== "ok");
+        baseline = { status: bad.status, metric: null, noise: null, runs };
+        warnings.push(`Baseline is ${bad.status}: the seed candidate is not correct. A writer's first correct candidate will not count as a verified gain.`);
+      }
+    }
+    if (n < 8) warnings.push(`N=${n} is below 8. In the paper, lessons did not beat the alternatives at N=4 (41% vs 53% for an orchestrated team); they led or tied from N=8 (R9).`);
+    if (cfg.budget.evals != null && cfg.budget.evals < n * 20) warnings.push(`budget.evals=${cfg.budget.evals} is below N x 20 = ${n * 20}. Tight evaluation caps suppressed every team design in the paper (R10).`);
+    if (cfg.budget.minutes < 60) warnings.push(`budget.minutes=${cfg.budget.minutes} is short. In the paper most of the benefit of sharing appeared in the second hour (R10).`);
+    const gi = (0, import_node_child_process2.spawnSync)("git", ["check-ignore", "-q", path5.join(".lessonshare", "runs", "x")], { cwd: this.projectDir });
+    if (gi.status === 1) warnings.push('.lessonshare/runs/ is not ignored by git. Add ".lessonshare/runs/" to .gitignore.');
+    const file = { run_id: runId, created: new Date(now).toISOString(), project_dir: this.projectDir, config: cfg, baseline, writers: ids };
+    writeJson(path5.join(dir, "run.json"), file);
+    const run = new Run(dir, file, this.clock, evalFn);
+    this.runs.set(runId, run);
+    run.start();
+    run.log(`run created: mode=${mode} n=${n}`);
+    return this.initResult(run, warnings, false);
+  }
+  releaseOne(dir) {
+    const f = path5.join(dir, "server.lock");
+    try {
+      fs5.unlinkSync(f);
+    } catch {
+    }
+    this.locks.delete(f);
+  }
+  initResult(run, warnings, resumed) {
+    return {
+      run_id: run.id,
+      run_dir: run.dir,
+      writers: run.writerIds,
+      baseline: { status: run.baseline.status, metric: run.baseline.metric, noise: run.baseline.noise },
+      verify_kind: run.cfg.verify.kind,
+      session_base: resumed ? run.maxSession() + 1 : 0,
+      resumed,
+      config: run.cfg,
+      warnings
+    };
+  }
+};
+
+// src/cli/cli.ts
+var USAGE = `lessonshare <command>
+
+  runs                               list runs in this project
+  board <run_id> [--follow]          print the lesson board in time order
+  report <run_id>                    print report.md, or the current state if not confirmed
+  eval <task.json> <candidate_dir>   run the evaluation command once and show how the host parses it
+  calibrate <task.json> [--runs 10]  evaluate the seed repeatedly; print noise and a suggested min_gain
+  call <tool> '<json-args>'          call a host tool directly (fallback when MCP is unavailable)
+
+The project directory is the current directory (or $LESSONSHARE_PROJECT_DIR).`;
+var projectDir = () => fs6.realpathSync(process.env.LESSONSHARE_PROJECT_DIR && !process.env.LESSONSHARE_PROJECT_DIR.includes("${") ? process.env.LESSONSHARE_PROJECT_DIR : process.cwd());
+var runsDir = () => path6.join(projectDir(), ".lessonshare", "runs");
+var fail = (msg) => {
+  process.stderr.write(msg + "\n");
+  process.exit(1);
+};
+function runDir(id) {
+  if (!id) fail('run_id is required. Use "lessonshare runs" to list runs.');
+  const d = path6.join(runsDir(), id);
+  if (!fs6.existsSync(path6.join(d, "run.json"))) fail(`no run "${id}" in ${runsDir()}`);
+  return d;
+}
+function flag(args, name) {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : void 0;
+}
+function cmdRuns() {
+  let names = [];
+  try {
+    names = fs6.readdirSync(runsDir()).sort();
+  } catch {
+  }
+  if (!names.length) return console.log("no runs in " + runsDir());
+  for (const id of names) {
+    const d = path6.join(runsDir(), id);
+    if (!fs6.existsSync(path6.join(d, "run.json"))) continue;
+    const rf = readJson(path6.join(d, "run.json"));
+    const evs = readJsonl(path6.join(d, "events.jsonl"));
+    let state = "open";
+    let best = null;
+    for (const e of evs) {
+      if (e.type === "run_closed") state = "closed:" + e.reason;
+      if (e.type === "run_reopened") state = "open";
+      if (e.type === "run_confirmed") state = "confirmed";
+      if (e.type === "eval_result" && e.is_team_best) best = e.metric;
+    }
+    console.log(`${id}  ${rf.config.mode.padEnd(16)} n=${String(rf.config.n).padEnd(3)} ${state.padEnd(16)} task=${rf.config.name}  baseline=${rf.baseline.metric == null ? "-" : fmtNum(rf.baseline.metric)}  best=${best == null ? "-" : fmtNum(best)}`);
+  }
+}
+async function cmdBoard(args) {
+  const d = runDir(args[0]);
+  const file = path6.join(d, "lessons.jsonl");
+  let shown = 0;
+  const done = /* @__PURE__ */ new Set();
+  const print = () => {
+    const verdicts = /* @__PURE__ */ new Map();
+    for (const e of readJsonl(path6.join(d, "events.jsonl"))) if (e.type === "lesson_verdict") verdicts.set(e.lesson_id, e);
+    for (const l of readJsonl(file)) {
+      if (done.has(l.lesson_id)) continue;
+      const v = verdicts.get(l.lesson_id);
+      if (l.verdict === "pending" && !v && args.includes("--follow")) continue;
+      const header = v ? v.header : l.header;
+      const pushed = v ? v.pushed : l.pushed;
+      const tag = v?.verdict === "withheld" ? "HIDDEN" : pushed ? "PUSHED" : "board ";
+      console.log(`${l.lesson_id}  min ${l.minute}  ${tag}  ${header}
+${l.text}
+`);
+      done.add(l.lesson_id);
+      shown++;
+    }
+  };
+  print();
+  if (!shown && !args.includes("--follow")) console.log("(no lessons)");
+  if (args.includes("--follow")) for (; ; ) {
+    await new Promise((r) => setTimeout(r, 2e3));
+    print();
+  }
+}
+function cmdReport(args) {
+  const d = runDir(args[0]);
+  const md = path6.join(d, "report.md");
+  if (fs6.existsSync(md) && readJsonl(path6.join(d, "events.jsonl")).some((e) => e.type === "run_confirmed")) return process.stdout.write(fs6.readFileSync(md, "utf8"));
+  console.log("(run not confirmed; current state)\n");
+  process.stdout.write(renderReportMd(buildReport(d)));
+}
+async function evalOnce(taskPath, candDir) {
+  const proj = projectDir();
+  const cfg = buildConfig(proj, loadTaskFile(proj, taskPath), "lessonshare", 1, {}, {});
+  const tmp = fs6.mkdtempSync(path6.join(os.tmpdir(), "lessonshare-eval-"));
+  const fn = commandEvalFn(cfg, proj);
+  return { cfg, run: () => fn({ kind: "eval", candidate_dir: path6.resolve(candDir), run_dir: tmp, cand_id: "try" }) };
+}
+async function cmdEval(args) {
+  if (args.length < 2) fail("usage: lessonshare eval <task.json> <candidate_dir>");
+  const { cfg, run } = await evalOnce(args[0], args[1]);
+  const o = await run();
+  console.log(o.log.trimEnd());
+  console.log("\n--- host view ---");
+  console.log(JSON.stringify({ status: o.status, metric: o.metric, detail: o.detail, eval_s: round(o.eval_s, 2) }, null, 2));
+  if (o.status === "infra_error") {
+    console.log('\nContract problem: the last non-empty stdout line must be a JSON object like {"status":"ok","metric":1.12,"detail":"..."}; the process must exit 0.');
+    process.exit(2);
+  }
+  const perHour = 3600 * cfg.eval.concurrency / Math.max(o.eval_s, 1e-3);
+  console.log(`
+Throughput at eval.concurrency=${cfg.eval.concurrency}: about ${Math.round(perHour)} evaluations/hour for the whole team.`);
+}
+async function cmdCalibrate(args) {
+  if (!args[0]) fail("usage: lessonshare calibrate <task.json> [--runs 10]");
+  const runs = Number(flag(args, "--runs") ?? 10);
+  const proj = projectDir();
+  const task = loadTaskFile(proj, args[0]);
+  const { cfg, run } = await evalOnce(args[0], path6.resolve(proj, task.candidate?.seed ?? "."));
+  const ms = [];
+  let secs = 0;
+  for (let i = 0; i < runs; i++) {
+    const o = await run();
+    secs += o.eval_s;
+    console.log(`run ${i + 1}: ${o.status}${o.metric == null ? "" : " " + fmtNum(o.metric)} (${round(o.eval_s, 2)}s)${o.status === "ok" ? "" : " " + o.detail}`);
+    if (o.status !== "ok") fail(`seed is not ok (${o.status}); fix the seed or the evaluator before calibrating.`);
+    ms.push(o.metric);
+  }
+  const med = median(ms);
+  const noise = med !== 0 ? (Math.max(...ms) - Math.min(...ms)) / Math.abs(med) : 0;
+  const suggested = Math.max(0.01, round(2 * noise, 4));
+  console.log(JSON.stringify({ baseline: med, noise: round(noise, 5), min_gain_configured: cfg.metric.min_gain, min_gain_suggested: suggested, mean_eval_s: round(secs / runs, 2), evals_per_hour_team: Math.round(3600 * cfg.eval.concurrency / Math.max(secs / runs, 1e-3)) }, null, 2));
+  if (noise >= cfg.metric.min_gain) console.log(`WARNING: noise ${(noise * 100).toFixed(2)}% is not below min_gain ${(cfg.metric.min_gain * 100).toFixed(2)}%. Set metric.min_gain to ${suggested} in the task file.`);
+}
+async function cmdCall(args) {
+  if (!args[0]) fail("usage: lessonshare call <tool> '<json-args>'");
+  const host = new Host({ projectDir: projectDir() });
+  try {
+    const out = await host.call(args[0], args[1] ? JSON.parse(args[1]) : {});
+    console.log(JSON.stringify(out, null, 2));
+  } finally {
+    host.releaseLocks();
+  }
+}
+async function main() {
+  const [cmd, ...args] = process.argv.slice(2);
+  try {
+    switch (cmd) {
+      case "runs":
+        return cmdRuns();
+      case "board":
+        return await cmdBoard(args);
+      case "report":
+        return cmdReport(args);
+      case "eval":
+        return await cmdEval(args);
+      case "calibrate":
+        return await cmdCalibrate(args);
+      case "call":
+        return await cmdCall(args);
+      default:
+        console.log(USAGE);
+        process.exit(cmd && cmd !== "help" && cmd !== "--help" ? 1 : 0);
+    }
+  } catch (e) {
+    fail(`error: ${e.message}`);
+  }
+}
+main();

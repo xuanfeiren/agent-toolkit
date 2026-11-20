@@ -1,0 +1,8 @@
+{
+  "name": "toy-catalog-report",
+  "goal": "Minimize the total API cost of solve() in solution.js while keeping its output exactly correct. Read the API description first: every api call has a cost, plain JavaScript is free. The evaluator runs hidden test inputs and reports the total cost and its breakdown per API call.",
+  "context_files": ["toy/API.md"],
+  "candidate": { "seed": "toy/baseline", "files": ["solution.js"] },
+  "eval": { "command": ["node", "toy/eval.js", "--candidate", "{candidate_dir}"], "cwd": ".", "timeout_s": 30, "concurrency": 1 },
+  "metric": { "name": "api_cost", "direction": "min", "target": 4000, "min_gain": 0.01 }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "toy-divisor-chain",
+  "goal": "Find the longest sequence of distinct integers from 1 to 48 in which every two neighbours are related by divisibility (one divides the other). Read the problem statement in the context files. Keep your best sequence in answer.md in the required format. There is no evaluator: check every adjacent pair yourself.",
+  "criteria": "1. Validity comes first: all numbers are distinct integers between 1 and 48 and every adjacent pair is related by divisibility. An answer with any invalid pair or repeated number scores 0, whatever its length. 2. Among valid answers, the longer sequence is better. 3. The stated LENGTH must equal the real number of terms. 4. A sound argument about which numbers cannot be included breaks ties.",
+  "context_files": ["toy-open/PROBLEM.md"],
+  "candidate": { "files": ["answer.md"] },
+  "verify": { "kind": "agent" }
+}

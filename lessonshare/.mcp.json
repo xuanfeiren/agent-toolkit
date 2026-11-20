@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "board": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/board.js"],
+      "env": { "LESSONSHARE_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}" },
+      "alwaysLoad": true,
+      "timeout": 3600000
+    }
+  }
+}

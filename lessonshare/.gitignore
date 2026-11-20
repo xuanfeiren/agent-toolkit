@@ -1,0 +1,9 @@
+node_modules/
+.lessonshare/
+spikes/proj/spike-out/
+spikes/proj/sandbox/
+*.log
+.smoke/
+spikes/proj/.sens-test-dot/
+spikes/proj/lessonshare-data/
+spikes/proj/sens-test-plain/

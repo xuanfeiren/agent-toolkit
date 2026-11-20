@@ -1,0 +1,5 @@
+{
+  "name": "lessonshare",
+  "version": "0.1.0",
+  "description": "Team search with verified lesson sharing: N isolated parallel agents work one task (with or without an evaluator) and exchange short verified lessons."
+}
