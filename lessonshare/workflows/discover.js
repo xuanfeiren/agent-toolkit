@@ -19,7 +19,7 @@ if (typeof input === 'string' && input.trim()) {
 if (input != null && (typeof input !== 'object' || Array.isArray(input))) throw new Error('args must be a JSON object')
 const cfg = {
   task: '.lessonshare/task.json', mode: 'lessonshare', n: 8, minutes: 120, evals: null,
-  max_sessions: 12, overrides: {}, resume_run_id: null, agent_type: 'lessonshare:writer',
+  max_sessions: 12, settings: {}, overrides: {}, resume_run_id: null, agent_type: 'lessonshare:writer',
   verifier_type: 'lessonshare:verifier', verifier_max_sessions: 20,
   ...(input || {}),
 }
@@ -34,7 +34,7 @@ const INIT_SCHEMA = {
   properties: {
     run_id: { type: 'string' }, run_dir: { type: 'string' },
     writers: { type: 'array', items: { type: 'string' } },
-    baseline: { type: 'object' }, session_base: { type: 'integer' }, verify_kind: { type: 'string' },
+    baseline: { type: 'object' }, session_base: { type: 'integer' }, verify_kind: { type: 'string' }, verifier: { type: 'boolean' }, settings: { type: 'object' },
     warnings: { type: 'array', items: { type: 'string' } }, error: { type: 'string' },
   },
   required: [],
@@ -62,12 +62,12 @@ const REPORT_SCHEMA = {
 function initPrompt(c) {
   const input = c.resume_run_id
     ? { resume_run_id: c.resume_run_id, budget: { minutes: c.minutes, evals: c.evals } }
-    : { task_path: c.task, mode: c.mode, n: c.n, budget: { minutes: c.minutes, evals: c.evals }, overrides: c.overrides }
+    : { task_path: c.task, mode: c.mode, n: c.n, budget: { minutes: c.minutes, evals: c.evals }, settings: c.settings, overrides: c.overrides }
   return `Call the tool ${T}init_run exactly once with exactly these arguments:
 
 ${JSON.stringify(input)}
 
-Then return its result as your structured output: copy run_id, run_dir, writers, baseline, verify_kind, session_base and warnings unchanged (leave out the large "config" field).
+Then return its result as your structured output: copy run_id, run_dir, writers, baseline, verify_kind, verifier, settings, session_base and warnings unchanged (leave out the large "config" field).
 If the tool returns an object with "error", or the call fails or is denied, return {"error": "<the error code and message>"} instead.
 Do not call any other tool. Do not retry. Do not read or edit files.`
 }
@@ -115,9 +115,11 @@ log(`run ${run.run_id} · baseline ${run.baseline && run.baseline.metric != null
 phase('Search')
 const base = Number.isInteger(run.session_base) ? run.session_base : 0
 const agentVerify = run.verify_kind === 'agent'
+const verifierOn = agentVerify && run.verifier !== false
+if (run.settings) log(`settings: ${Object.entries(run.settings).map(([k, v]) => `${k}=${v}`).join(' · ')}`)
 // With no evaluator, one verifier lane runs beside the writers. It never talks to them: it only records verdicts
 // with the host, which pushes verified lessons. It ends when the host closes the run.
-const verifierLane = !agentVerify ? null : (async () => {
+const verifierLane = !verifierOn ? null : (async () => {
   let misses = 0, sessions = 0, verdicts = 0
   for (let k = 0; k < cfg.verifier_max_sessions; k++) {
     const r = await agent(verifierPrompt(run, base + k), {

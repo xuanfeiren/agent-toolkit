@@ -244,6 +244,25 @@ describe('hook-guard.js', () => {
     expect(d('Read', { file_path: '/etc/passwd' })).toBe('deny')
     expect(d('Read', { file_path: path.join(runDir, 'run.json') }, { agent_id: 'nobody' })).toBe('deny') // not registered yet
   })
+  it('sends a writer that returns early back to work, a bounded number of times, and lets it go when the run closes', () => {
+    const ev = path.join(runDir, 'events.jsonl')
+    const before = fs.readFileSync(ev, 'utf8')
+    fs.writeFileSync(path.join(runDir, 'run.json'), JSON.stringify({ config: { session: { eval_quota: 2, keep_working: 2 }, budget: { minutes: 30 } } }))
+    fs.writeFileSync(path.join(runDir, 'agents', 'ag7.json'), JSON.stringify({ run_id: 'r1', run_dir: runDir, writer_id: 'w07', session: 0, start_ms: Date.now(), writer_dir: own, context_files: [] }))
+    const ret = (over: Record<string, unknown> = {}) => guard('StructuredOutput', { summary: 'done' }, { agent_id: 'ag7', ...over })
+    expect(ret({ agent_type: 'lessonshare:verifier' }).out).toBeNull()
+    const first = ret()
+    expect(first.out.permissionDecision).toBe('deny')
+    expect(first.out.permissionDecisionReason).toMatch(/Do not return yet/)
+    expect(ret().out.permissionDecision).toBe('deny')
+    expect(ret().out).toBeNull() // keep_working = 2 is used up
+    fs.rmSync(path.join(runDir, 'agents', 'ag7.returns'))
+    fs.appendFileSync(ev, JSON.stringify({ type: 'eval_submitted', writer_id: 'w07', session: 0 }) + '\n' + JSON.stringify({ type: 'eval_submitted', writer_id: 'w07', session: 0 }) + '\n')
+    expect(ret().out).toBeNull() // session quota reached: hand-off is legitimate
+    fs.writeFileSync(ev, before + JSON.stringify({ type: 'run_closed', reason: 'time' }) + '\n')
+    expect(ret().out).toBeNull() // run closed
+    fs.writeFileSync(ev, before)
+  })
   it('exits non-zero but non-blocking on malformed input', () => {
     const r = spawnSync('node', [path.join(DIST, 'hook-guard.js')], { input: 'not json', encoding: 'utf8' })
     expect(r.status).toBe(1)

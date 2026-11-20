@@ -33,9 +33,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../lessonshare/node_modules/ajv/dist/compile/codegen/code.js
+// node_modules/ajv/dist/compile/codegen/code.js
 var require_code = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/codegen/code.js"(exports2) {
+  "node_modules/ajv/dist/compile/codegen/code.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.regexpCode = exports2.getEsmExportName = exports2.getProperty = exports2.safeStringify = exports2.stringify = exports2.strConcat = exports2.addCodeArg = exports2.str = exports2._ = exports2.nil = exports2._Code = exports2.Name = exports2.IDENTIFIER = exports2._CodeOrName = void 0;
@@ -187,9 +187,9 @@ var require_code = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/codegen/scope.js
+// node_modules/ajv/dist/compile/codegen/scope.js
 var require_scope = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/codegen/scope.js"(exports2) {
+  "node_modules/ajv/dist/compile/codegen/scope.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ValueScope = exports2.ValueScopeName = exports2.Scope = exports2.varKinds = exports2.UsedValueState = void 0;
@@ -332,9 +332,9 @@ var require_scope = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/codegen/index.js
+// node_modules/ajv/dist/compile/codegen/index.js
 var require_codegen = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/codegen/index.js"(exports2) {
+  "node_modules/ajv/dist/compile/codegen/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.or = exports2.and = exports2.not = exports2.CodeGen = exports2.operators = exports2.varKinds = exports2.ValueScopeName = exports2.ValueScope = exports2.Scope = exports2.Name = exports2.regexpCode = exports2.stringify = exports2.getProperty = exports2.nil = exports2.strConcat = exports2.str = exports2._ = void 0;
@@ -1052,9 +1052,9 @@ var require_codegen = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/util.js
+// node_modules/ajv/dist/compile/util.js
 var require_util = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/util.js"(exports2) {
+  "node_modules/ajv/dist/compile/util.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.checkStrictMode = exports2.getErrorPath = exports2.Type = exports2.useFunc = exports2.setEvaluated = exports2.evaluatedPropsToName = exports2.mergeEvaluated = exports2.eachItem = exports2.unescapeJsonPointer = exports2.escapeJsonPointer = exports2.escapeFragment = exports2.unescapeFragment = exports2.schemaRefOrVal = exports2.schemaHasRulesButRef = exports2.schemaHasRules = exports2.checkUnknownRules = exports2.alwaysValidSchema = exports2.toHash = void 0;
@@ -1219,9 +1219,9 @@ var require_util = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/names.js
+// node_modules/ajv/dist/compile/names.js
 var require_names = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/names.js"(exports2) {
+  "node_modules/ajv/dist/compile/names.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -1258,9 +1258,9 @@ var require_names = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/errors.js
+// node_modules/ajv/dist/compile/errors.js
 var require_errors = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/errors.js"(exports2) {
+  "node_modules/ajv/dist/compile/errors.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.extendErrors = exports2.resetErrorsCount = exports2.reportExtraError = exports2.reportError = exports2.keyword$DataError = exports2.keywordError = void 0;
@@ -1380,9 +1380,9 @@ var require_errors = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/boolSchema.js
+// node_modules/ajv/dist/compile/validate/boolSchema.js
 var require_boolSchema = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/boolSchema.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/boolSchema.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.boolOrEmptySchema = exports2.topBoolOrEmptySchema = void 0;
@@ -1431,9 +1431,9 @@ var require_boolSchema = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/rules.js
+// node_modules/ajv/dist/compile/rules.js
 var require_rules = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/rules.js"(exports2) {
+  "node_modules/ajv/dist/compile/rules.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getRules = exports2.isJSONType = void 0;
@@ -1462,9 +1462,9 @@ var require_rules = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/applicability.js
+// node_modules/ajv/dist/compile/validate/applicability.js
 var require_applicability = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/applicability.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/applicability.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.shouldUseRule = exports2.shouldUseGroup = exports2.schemaHasRulesForType = void 0;
@@ -1485,9 +1485,9 @@ var require_applicability = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/dataType.js
+// node_modules/ajv/dist/compile/validate/dataType.js
 var require_dataType = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/dataType.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/dataType.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.reportTypeError = exports2.checkDataTypes = exports2.checkDataType = exports2.coerceAndCheckDataType = exports2.getJSONTypes = exports2.getSchemaTypes = exports2.DataType = void 0;
@@ -1669,9 +1669,9 @@ var require_dataType = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/defaults.js
+// node_modules/ajv/dist/compile/validate/defaults.js
 var require_defaults = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/defaults.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/defaults.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.assignDefaults = void 0;
@@ -1706,9 +1706,9 @@ var require_defaults = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/code.js
+// node_modules/ajv/dist/vocabularies/code.js
 var require_code2 = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/code.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/code.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateUnion = exports2.validateArray = exports2.usePattern = exports2.callValidateCode = exports2.schemaProperties = exports2.allSchemaProperties = exports2.noPropertyInData = exports2.propertyInData = exports2.isOwnProperty = exports2.hasPropFunc = exports2.reportMissingProp = exports2.checkMissingProp = exports2.checkReportMissingProp = void 0;
@@ -1839,9 +1839,9 @@ var require_code2 = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/keyword.js
+// node_modules/ajv/dist/compile/validate/keyword.js
 var require_keyword = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/keyword.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/keyword.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateKeywordUsage = exports2.validSchemaType = exports2.funcKeywordCode = exports2.macroKeywordCode = void 0;
@@ -1957,9 +1957,9 @@ var require_keyword = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/subschema.js
+// node_modules/ajv/dist/compile/validate/subschema.js
 var require_subschema = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/subschema.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/subschema.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.extendSubschemaMode = exports2.extendSubschemaData = exports2.getSubschema = void 0;
@@ -2040,9 +2040,9 @@ var require_subschema = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/fast-deep-equal/index.js
+// node_modules/fast-deep-equal/index.js
 var require_fast_deep_equal = __commonJS({
-  "../lessonshare/node_modules/fast-deep-equal/index.js"(exports2, module2) {
+  "node_modules/fast-deep-equal/index.js"(exports2, module2) {
     "use strict";
     module2.exports = function equal(a, b) {
       if (a === b) return true;
@@ -2075,9 +2075,9 @@ var require_fast_deep_equal = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/json-schema-traverse/index.js
+// node_modules/json-schema-traverse/index.js
 var require_json_schema_traverse = __commonJS({
-  "../lessonshare/node_modules/json-schema-traverse/index.js"(exports2, module2) {
+  "node_modules/json-schema-traverse/index.js"(exports2, module2) {
     "use strict";
     var traverse = module2.exports = function(schema, opts, cb) {
       if (typeof opts == "function") {
@@ -2163,9 +2163,9 @@ var require_json_schema_traverse = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/resolve.js
+// node_modules/ajv/dist/compile/resolve.js
 var require_resolve = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/resolve.js"(exports2) {
+  "node_modules/ajv/dist/compile/resolve.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getSchemaRefs = exports2.resolveUrl = exports2.normalizeId = exports2._getFullPath = exports2.getFullPath = exports2.inlineRef = void 0;
@@ -2319,9 +2319,9 @@ var require_resolve = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/validate/index.js
+// node_modules/ajv/dist/compile/validate/index.js
 var require_validate = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/validate/index.js"(exports2) {
+  "node_modules/ajv/dist/compile/validate/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getData = exports2.KeywordCxt = exports2.validateFunctionCode = void 0;
@@ -2827,9 +2827,9 @@ var require_validate = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/runtime/validation_error.js
+// node_modules/ajv/dist/runtime/validation_error.js
 var require_validation_error = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/runtime/validation_error.js"(exports2) {
+  "node_modules/ajv/dist/runtime/validation_error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var ValidationError = class extends Error {
@@ -2843,9 +2843,9 @@ var require_validation_error = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/ref_error.js
+// node_modules/ajv/dist/compile/ref_error.js
 var require_ref_error = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/ref_error.js"(exports2) {
+  "node_modules/ajv/dist/compile/ref_error.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var resolve_1 = require_resolve();
@@ -2860,9 +2860,9 @@ var require_ref_error = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/compile/index.js
+// node_modules/ajv/dist/compile/index.js
 var require_compile = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/compile/index.js"(exports2) {
+  "node_modules/ajv/dist/compile/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.resolveSchema = exports2.getCompilingSchema = exports2.resolveRef = exports2.compileSchema = exports2.SchemaEnv = void 0;
@@ -3084,9 +3084,9 @@ var require_compile = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/refs/data.json
+// node_modules/ajv/dist/refs/data.json
 var require_data = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/refs/data.json"(exports2, module2) {
+  "node_modules/ajv/dist/refs/data.json"(exports2, module2) {
     module2.exports = {
       $id: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#",
       description: "Meta-schema for $data reference (JSON AnySchema extension proposal)",
@@ -3103,9 +3103,9 @@ var require_data = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/fast-uri/lib/utils.js
+// node_modules/fast-uri/lib/utils.js
 var require_utils = __commonJS({
-  "../lessonshare/node_modules/fast-uri/lib/utils.js"(exports2, module2) {
+  "node_modules/fast-uri/lib/utils.js"(exports2, module2) {
     "use strict";
     var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
     var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
@@ -3637,9 +3637,9 @@ var require_utils = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/fast-uri/lib/schemes.js
+// node_modules/fast-uri/lib/schemes.js
 var require_schemes = __commonJS({
-  "../lessonshare/node_modules/fast-uri/lib/schemes.js"(exports2, module2) {
+  "node_modules/fast-uri/lib/schemes.js"(exports2, module2) {
     "use strict";
     var { isUUID } = require_utils();
     var URN_REG = /^([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-./:;=@]|%[\da-f]{2})+)$/iu;
@@ -3848,9 +3848,9 @@ var require_schemes = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/fast-uri/index.js
+// node_modules/fast-uri/index.js
 var require_fast_uri = __commonJS({
-  "../lessonshare/node_modules/fast-uri/index.js"(exports2, module2) {
+  "node_modules/fast-uri/index.js"(exports2, module2) {
     "use strict";
     var { normalizeIPv6, removeDotSegments, removeDotSegmentsRelative, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, serializePathEncoding, normalizeQueryFragmentEncoding, encodeQuery, encodeFragment, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
@@ -4278,9 +4278,9 @@ var require_fast_uri = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/runtime/uri.js
+// node_modules/ajv/dist/runtime/uri.js
 var require_uri = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/runtime/uri.js"(exports2) {
+  "node_modules/ajv/dist/runtime/uri.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var uri = require_fast_uri();
@@ -4289,9 +4289,9 @@ var require_uri = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/core.js
+// node_modules/ajv/dist/core.js
 var require_core = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/core.js"(exports2) {
+  "node_modules/ajv/dist/core.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CodeGen = exports2.Name = exports2.nil = exports2.stringify = exports2.str = exports2._ = exports2.KeywordCxt = void 0;
@@ -4900,9 +4900,9 @@ var require_core = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/core/id.js
+// node_modules/ajv/dist/vocabularies/core/id.js
 var require_id = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/core/id.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/core/id.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var def = {
@@ -4915,9 +4915,9 @@ var require_id = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/core/ref.js
+// node_modules/ajv/dist/vocabularies/core/ref.js
 var require_ref = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/core/ref.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/core/ref.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.callRef = exports2.getValidate = void 0;
@@ -5037,9 +5037,9 @@ var require_ref = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/core/index.js
+// node_modules/ajv/dist/vocabularies/core/index.js
 var require_core2 = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/core/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/core/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var id_1 = require_id();
@@ -5058,9 +5058,9 @@ var require_core2 = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitNumber.js
+// node_modules/ajv/dist/vocabularies/validation/limitNumber.js
 var require_limitNumber = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitNumber.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitNumber.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5090,9 +5090,9 @@ var require_limitNumber = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/multipleOf.js
+// node_modules/ajv/dist/vocabularies/validation/multipleOf.js
 var require_multipleOf = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/multipleOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/multipleOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5118,9 +5118,9 @@ var require_multipleOf = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/runtime/ucs2length.js
+// node_modules/ajv/dist/runtime/ucs2length.js
 var require_ucs2length = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
+  "node_modules/ajv/dist/runtime/ucs2length.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     function ucs2length(str2) {
@@ -5144,9 +5144,9 @@ var require_ucs2length = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitLength.js
+// node_modules/ajv/dist/vocabularies/validation/limitLength.js
 var require_limitLength = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitLength.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitLength.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5176,9 +5176,9 @@ var require_limitLength = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/pattern.js
+// node_modules/ajv/dist/vocabularies/validation/pattern.js
 var require_pattern = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/pattern.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/pattern.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -5213,9 +5213,9 @@ var require_pattern = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitProperties.js
+// node_modules/ajv/dist/vocabularies/validation/limitProperties.js
 var require_limitProperties = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitProperties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitProperties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5242,9 +5242,9 @@ var require_limitProperties = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/required.js
+// node_modules/ajv/dist/vocabularies/validation/required.js
 var require_required = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/required.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/required.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -5324,9 +5324,9 @@ var require_required = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitItems.js
+// node_modules/ajv/dist/vocabularies/validation/limitItems.js
 var require_limitItems = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/limitItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/limitItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5353,9 +5353,9 @@ var require_limitItems = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/runtime/equal.js
+// node_modules/ajv/dist/runtime/equal.js
 var require_equal = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/runtime/equal.js"(exports2) {
+  "node_modules/ajv/dist/runtime/equal.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var equal = require_fast_deep_equal();
@@ -5364,9 +5364,9 @@ var require_equal = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
+// node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
 var require_uniqueItems = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/uniqueItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/uniqueItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var dataType_1 = require_dataType();
@@ -5431,9 +5431,9 @@ var require_uniqueItems = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/const.js
+// node_modules/ajv/dist/vocabularies/validation/const.js
 var require_const = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/const.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/const.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5460,9 +5460,9 @@ var require_const = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/enum.js
+// node_modules/ajv/dist/vocabularies/validation/enum.js
 var require_enum = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/enum.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/enum.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5509,9 +5509,9 @@ var require_enum = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/validation/index.js
+// node_modules/ajv/dist/vocabularies/validation/index.js
 var require_validation = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/validation/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/validation/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var limitNumber_1 = require_limitNumber();
@@ -5547,9 +5547,9 @@ var require_validation = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
+// node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
 var require_additionalItems = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/additionalItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/additionalItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateAdditionalItems = void 0;
@@ -5600,9 +5600,9 @@ var require_additionalItems = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/items.js
+// node_modules/ajv/dist/vocabularies/applicator/items.js
 var require_items = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/items.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/items.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateTuple = void 0;
@@ -5657,9 +5657,9 @@ var require_items = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
+// node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
 var require_prefixItems = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/prefixItems.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/prefixItems.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var items_1 = require_items();
@@ -5674,9 +5674,9 @@ var require_prefixItems = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/items2020.js
+// node_modules/ajv/dist/vocabularies/applicator/items2020.js
 var require_items2020 = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/items2020.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/items2020.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5709,9 +5709,9 @@ var require_items2020 = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/contains.js
+// node_modules/ajv/dist/vocabularies/applicator/contains.js
 var require_contains = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/contains.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/contains.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5803,9 +5803,9 @@ var require_contains = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/dependencies.js
+// node_modules/ajv/dist/vocabularies/applicator/dependencies.js
 var require_dependencies = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/dependencies.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/dependencies.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.validateSchemaDeps = exports2.validatePropertyDeps = exports2.error = void 0;
@@ -5897,9 +5897,9 @@ var require_dependencies = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
+// node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
 var require_propertyNames = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/propertyNames.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/propertyNames.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -5940,9 +5940,9 @@ var require_propertyNames = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
+// node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
 var require_additionalProperties = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -6046,9 +6046,9 @@ var require_additionalProperties = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/properties.js
+// node_modules/ajv/dist/vocabularies/applicator/properties.js
 var require_properties = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/properties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/properties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var validate_1 = require_validate();
@@ -6104,9 +6104,9 @@ var require_properties = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
+// node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
 var require_patternProperties = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/patternProperties.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/patternProperties.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -6178,9 +6178,9 @@ var require_patternProperties = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/not.js
+// node_modules/ajv/dist/vocabularies/applicator/not.js
 var require_not = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/not.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/not.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var util_1 = require_util();
@@ -6209,9 +6209,9 @@ var require_not = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/anyOf.js
+// node_modules/ajv/dist/vocabularies/applicator/anyOf.js
 var require_anyOf = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/anyOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/anyOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
@@ -6226,9 +6226,9 @@ var require_anyOf = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/oneOf.js
+// node_modules/ajv/dist/vocabularies/applicator/oneOf.js
 var require_oneOf = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/oneOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/oneOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -6284,9 +6284,9 @@ var require_oneOf = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/allOf.js
+// node_modules/ajv/dist/vocabularies/applicator/allOf.js
 var require_allOf = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/allOf.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/allOf.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var util_1 = require_util();
@@ -6311,9 +6311,9 @@ var require_allOf = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/if.js
+// node_modules/ajv/dist/vocabularies/applicator/if.js
 var require_if = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/if.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/if.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -6380,9 +6380,9 @@ var require_if = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/thenElse.js
+// node_modules/ajv/dist/vocabularies/applicator/thenElse.js
 var require_thenElse = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/thenElse.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/thenElse.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var util_1 = require_util();
@@ -6398,9 +6398,9 @@ var require_thenElse = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/applicator/index.js
+// node_modules/ajv/dist/vocabularies/applicator/index.js
 var require_applicator = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/applicator/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/applicator/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var additionalItems_1 = require_additionalItems();
@@ -6446,9 +6446,9 @@ var require_applicator = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/format/format.js
+// node_modules/ajv/dist/vocabularies/format/format.js
 var require_format = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/format/format.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/format/format.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -6536,9 +6536,9 @@ var require_format = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/format/index.js
+// node_modules/ajv/dist/vocabularies/format/index.js
 var require_format2 = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/format/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/format/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var format_1 = require_format();
@@ -6547,9 +6547,9 @@ var require_format2 = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/metadata.js
+// node_modules/ajv/dist/vocabularies/metadata.js
 var require_metadata = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/metadata.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/metadata.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.contentVocabulary = exports2.metadataVocabulary = void 0;
@@ -6570,9 +6570,9 @@ var require_metadata = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/draft7.js
+// node_modules/ajv/dist/vocabularies/draft7.js
 var require_draft7 = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/draft7.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/draft7.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var core_1 = require_core2();
@@ -6592,9 +6592,9 @@ var require_draft7 = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/discriminator/types.js
+// node_modules/ajv/dist/vocabularies/discriminator/types.js
 var require_types = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/discriminator/types.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/discriminator/types.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.DiscrError = void 0;
@@ -6606,9 +6606,9 @@ var require_types = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/vocabularies/discriminator/index.js
+// node_modules/ajv/dist/vocabularies/discriminator/index.js
 var require_discriminator = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/vocabularies/discriminator/index.js"(exports2) {
+  "node_modules/ajv/dist/vocabularies/discriminator/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var codegen_1 = require_codegen();
@@ -6627,7 +6627,7 @@ var require_discriminator = __commonJS({
       error: error2,
       code(cxt) {
         const { gen, data, schema, parentSchema, it } = cxt;
-        const { oneOf } = parentSchema;
+        const { oneOf: oneOf2 } = parentSchema;
         if (!it.opts.discriminator) {
           throw new Error("discriminator: requires discriminator option");
         }
@@ -6636,7 +6636,7 @@ var require_discriminator = __commonJS({
           throw new Error("discriminator: requires propertyName");
         if (schema.mapping)
           throw new Error("discriminator: mapping is not supported");
-        if (!oneOf)
+        if (!oneOf2)
           throw new Error("discriminator: requires oneOf keyword");
         const valid = gen.let("valid", false);
         const tag = gen.const("tag", (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(tagName)}`);
@@ -6664,8 +6664,8 @@ var require_discriminator = __commonJS({
           const oneOfMapping = {};
           const topRequired = hasRequired(parentSchema);
           let tagRequired = true;
-          for (let i = 0; i < oneOf.length; i++) {
-            let sch = oneOf[i];
+          for (let i = 0; i < oneOf2.length; i++) {
+            let sch = oneOf2[i];
             if ((sch === null || sch === void 0 ? void 0 : sch.$ref) && !(0, util_1.schemaHasRulesButRef)(sch, it.self.RULES)) {
               const ref = sch.$ref;
               sch = compile_1.resolveRef.call(it.self, it.schemaEnv.root, it.baseId, ref);
@@ -6711,9 +6711,9 @@ var require_discriminator = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/refs/json-schema-draft-07.json
+// node_modules/ajv/dist/refs/json-schema-draft-07.json
 var require_json_schema_draft_07 = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/refs/json-schema-draft-07.json"(exports2, module2) {
+  "node_modules/ajv/dist/refs/json-schema-draft-07.json"(exports2, module2) {
     module2.exports = {
       $schema: "http://json-schema.org/draft-07/schema#",
       $id: "http://json-schema.org/draft-07/schema#",
@@ -6868,9 +6868,9 @@ var require_json_schema_draft_07 = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv/dist/ajv.js
+// node_modules/ajv/dist/ajv.js
 var require_ajv = __commonJS({
-  "../lessonshare/node_modules/ajv/dist/ajv.js"(exports2, module2) {
+  "node_modules/ajv/dist/ajv.js"(exports2, module2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.MissingRefError = exports2.ValidationError = exports2.CodeGen = exports2.Name = exports2.nil = exports2.stringify = exports2.str = exports2._ = exports2.KeywordCxt = exports2.Ajv = void 0;
@@ -6938,9 +6938,9 @@ var require_ajv = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv-formats/dist/formats.js
+// node_modules/ajv-formats/dist/formats.js
 var require_formats = __commonJS({
-  "../lessonshare/node_modules/ajv-formats/dist/formats.js"(exports2) {
+  "node_modules/ajv-formats/dist/formats.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatNames = exports2.fastFormats = exports2.fullFormats = void 0;
@@ -7141,9 +7141,9 @@ var require_formats = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv-formats/dist/limit.js
+// node_modules/ajv-formats/dist/limit.js
 var require_limit = __commonJS({
-  "../lessonshare/node_modules/ajv-formats/dist/limit.js"(exports2) {
+  "node_modules/ajv-formats/dist/limit.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.formatLimitDefinition = void 0;
@@ -7213,9 +7213,9 @@ var require_limit = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/ajv-formats/dist/index.js
+// node_modules/ajv-formats/dist/index.js
 var require_dist = __commonJS({
-  "../lessonshare/node_modules/ajv-formats/dist/index.js"(exports2, module2) {
+  "node_modules/ajv-formats/dist/index.js"(exports2, module2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var formats_1 = require_formats();
@@ -7255,7 +7255,7 @@ var require_dist = __commonJS({
   }
 });
 
-// ../lessonshare/node_modules/zod/v4/core/util.js
+// node_modules/zod/v4/core/util.js
 var util_exports = {};
 __export(util_exports, {
   BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
@@ -8111,7 +8111,7 @@ function constantCatch(value) {
   return fn;
 }
 
-// ../lessonshare/node_modules/zod/v4/core/core.js
+// node_modules/zod/v4/core/core.js
 var _a;
 var _zodDesc = { value: void 0, enumerable: false };
 var _E = "captureStackTrace" in Error ? Error : null;
@@ -8229,7 +8229,7 @@ function config(newConfig) {
   return globalConfig;
 }
 
-// ../lessonshare/node_modules/zod/v4/core/errors.js
+// node_modules/zod/v4/core/errors.js
 function _getMessage() {
   const internals = this._zod;
   internals.message ?? (internals.message = JSON.stringify(internals.def, jsonStringifyReplacer, 2));
@@ -8344,7 +8344,7 @@ function formatError(error2, mapper = (issue2) => issue2.message) {
   return fieldErrors;
 }
 
-// ../lessonshare/node_modules/zod/v4/core/parse.js
+// node_modules/zod/v4/core/parse.js
 function finalizeParams(callee, params) {
   return { callee: params?.callee ?? callee, Err: params?.Err };
 }
@@ -8493,7 +8493,7 @@ var _safeDecodeAsync = (_Err) => async (schema, value, _ctx) => {
   return _safeParseAsync(_Err)(schema, value, _ctx);
 };
 
-// ../lessonshare/node_modules/zod/v4/core/regexes.js
+// node_modules/zod/v4/core/regexes.js
 var cuid = /^[cC][0-9a-z]{6,}$/;
 var cuid2 = /^[0-9a-z]+$/;
 var ulid = /^[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}$/;
@@ -8552,7 +8552,7 @@ var _null = /^null$/i;
 var lowercase = /^[^A-Z]*$/;
 var uppercase = /^[^a-z]*$/;
 
-// ../lessonshare/node_modules/zod/v4/core/checks.js
+// node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
   var _a3;
   inst._zod ?? (inst._zod = {});
@@ -8872,7 +8872,7 @@ var $ZodCheckOverwrite = /* @__PURE__ */ $constructor("$ZodCheckOverwrite", (ins
   };
 });
 
-// ../lessonshare/node_modules/zod/v4/core/doc.js
+// node_modules/zod/v4/core/doc.js
 var Doc = class {
   constructor(args = [], closed = {}) {
     this.content = [];
@@ -8913,14 +8913,14 @@ ${content.join("\n")}
   }
 };
 
-// ../lessonshare/node_modules/zod/v4/core/versions.js
+// node_modules/zod/v4/core/versions.js
 var version = {
   major: 4,
   minor: 6,
   patch: 7
 };
 
-// ../lessonshare/node_modules/zod/v4/core/schemas.js
+// node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
   var _a3;
   inst ?? (inst = {});
@@ -10587,7 +10587,7 @@ function handleRefineResult(result, payload, input, inst) {
   }
 }
 
-// ../lessonshare/node_modules/zod/v4/core/memoizer.js
+// node_modules/zod/v4/core/memoizer.js
 var $ZodCyclicError = class extends Error {
   constructor() {
     super(`Cannot parse a reference cycle that closes through a transform`);
@@ -10861,7 +10861,7 @@ function isBackEdge(ctx, value) {
   return backEdges !== void 0 && isRef(value) && backEdges.has(value);
 }
 
-// ../lessonshare/node_modules/zod/v4/locales/en.js
+// node_modules/zod/v4/locales/en.js
 var error = () => {
   const Sizable = {
     string: { unit: "characters", verb: "to have" },
@@ -10986,7 +10986,7 @@ function en_default() {
   };
 }
 
-// ../lessonshare/node_modules/zod/v4/core/registries.js
+// node_modules/zod/v4/core/registries.js
 var _a2;
 var $ZodRegistry = class {
   constructor() {
@@ -11034,7 +11034,7 @@ function registry() {
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 
-// ../lessonshare/node_modules/zod/v4/core/api.js
+// node_modules/zod/v4/core/api.js
 function snapshotChecks(def) {
   if (def.checks)
     def.checks = [...def.checks];
@@ -11561,7 +11561,7 @@ function _check(fn, params) {
   return ch;
 }
 
-// ../lessonshare/node_modules/zod/v4/core/to-json-schema.js
+// node_modules/zod/v4/core/to-json-schema.js
 function assignProps(target, ...sources) {
   for (const source of sources) {
     for (const key of Reflect.ownKeys(source)) {
@@ -12091,7 +12091,7 @@ var createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) =
   return finalize(ctx, schema);
 };
 
-// ../lessonshare/node_modules/zod/v4/core/json-schema-processors.js
+// node_modules/zod/v4/core/json-schema-processors.js
 var narrowMin = (agg, key, value) => {
   if (agg[key] === void 0 || value > agg[key])
     agg[key] = value;
@@ -12629,7 +12629,7 @@ var optionalProcessor = (schema, ctx, _json, params) => {
   seen.ref = def.innerType;
 };
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-compat.js
 function isZ4Schema(s) {
   const schema = s;
   return !!schema._zod;
@@ -12692,7 +12692,7 @@ function getLiteralValue(schema) {
   return void 0;
 }
 
-// ../lessonshare/node_modules/zod/v4/classic/errors.js
+// node_modules/zod/v4/classic/errors.js
 var _installedErrorProtos = /* @__PURE__ */ new WeakSet([Object.prototype, Error.prototype]);
 function _lazyMethod(proto, key, make) {
   Object.defineProperty(proto, key, {
@@ -12737,7 +12737,7 @@ var ZodRealError = /* @__PURE__ */ $constructor("ZodError", initializer2, void 0
   Parent: Error
 });
 
-// ../lessonshare/node_modules/zod/v4/classic/parse.js
+// node_modules/zod/v4/classic/parse.js
 var parse2 = /* @__PURE__ */ _parse(ZodRealError);
 var parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
 var safeParse3 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -12751,7 +12751,7 @@ var safeDecode2 = /* @__PURE__ */ _safeDecode(ZodRealError);
 var safeEncodeAsync2 = /* @__PURE__ */ _safeEncodeAsync(ZodRealError);
 var safeDecodeAsync2 = /* @__PURE__ */ _safeDecodeAsync(ZodRealError);
 
-// ../lessonshare/node_modules/zod/v4/classic/schemas.js
+// node_modules/zod/v4/classic/schemas.js
 function _ensureDefaultLocale() {
   if (!globalConfig.localeError)
     config(en_default());
@@ -13695,7 +13695,7 @@ function preprocess(fn, schema) {
   });
 }
 
-// ../lessonshare/node_modules/zod/v4/classic/iso.js
+// node_modules/zod/v4/classic/iso.js
 var iso_exports = {};
 __export(iso_exports, {
   ZodISODate: () => ZodISODate,
@@ -13720,7 +13720,7 @@ function duration2(params) {
   return _isoDuration(ZodISODuration, params);
 }
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/types.js
 var LATEST_PROTOCOL_VERSION = "2025-11-25";
 var SUPPORTED_PROTOCOL_VERSIONS = [LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"];
 var RELATED_TASK_META_KEY = "io.modelcontextprotocol/related-task";
@@ -15239,15 +15239,15 @@ var UrlElicitationRequiredError = class extends McpError {
   }
 };
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/interfaces.js
 function isTerminal(status) {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
-// ../lessonshare/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
+// node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 var ALPHA_NUMERIC = new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/zod-json-schema-compat.js
 function getMethodLiteral(schema) {
   const shape = getObjectShape(schema);
   const methodSchema = shape?.method;
@@ -15268,7 +15268,7 @@ function parseWithCompat(schema, data) {
   return result.data;
 }
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/protocol.js
 var DEFAULT_REQUEST_TIMEOUT_MSEC = 6e4;
 var Protocol = class {
   constructor(_options) {
@@ -16245,7 +16245,7 @@ function mergeCapabilities(base, additional) {
   return result;
 }
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/validation/ajv-provider.js
 var import_ajv = __toESM(require_ajv(), 1);
 var import_ajv_formats = __toESM(require_dist(), 1);
 function createDefaultAjvInstance() {
@@ -16313,7 +16313,7 @@ var AjvJsonSchemaValidator = class {
   }
 };
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/server.js
 var ExperimentalServerTasks = class {
   constructor(_server) {
     this._server = _server;
@@ -16526,7 +16526,7 @@ var ExperimentalServerTasks = class {
   }
 };
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/experimental/tasks/helpers.js
 function assertToolsCallTaskCapability(requests, method, entityName) {
   if (!requests) {
     throw new Error(`${entityName} does not support task creation (required for ${method})`);
@@ -16561,7 +16561,7 @@ function assertClientRequestTaskCapability(requests, method, entityName) {
   }
 }
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js
 var Server = class extends Protocol {
   /**
    * Initializes this server with the given name and version information.
@@ -16932,10 +16932,10 @@ var Server = class extends Protocol {
   }
 };
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 var import_node_process = __toESM(require("node:process"), 1);
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/shared/stdio.js
 var STDIO_DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 var ReadBuffer = class {
   constructor(options) {
@@ -16972,7 +16972,7 @@ function serializeMessage(message) {
   return JSON.stringify(message) + "\n";
 }
 
-// ../lessonshare/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
+// node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js
 var StdioServerTransport = class {
   constructor(_stdin = import_node_process.default.stdin, _stdout = import_node_process.default.stdout, options) {
     this._stdin = _stdin;
@@ -17244,7 +17244,7 @@ var DEFAULTS = {
   context_files: [],
   candidate: { seed: null, files: null, max_bytes: 1048576 },
   verify: { kind: null },
-  verifier: { session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
+  verifier: { enabled: true, session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
   eval: { command: null, cwd: ".", timeout_s: 600, concurrency: 1, precheck: null, precheck_concurrency: 4, block_s: 300, max_pending: 2, max_candidates: 384 },
   metric: { name: null, direction: null, target: null, min_gain: 0.01 },
   gate: { reference: "author_best" },
@@ -17268,9 +17268,9 @@ var DEFAULTS = {
   },
   push: { policy: "verified", max_per_delivery: 5 },
   read: { require_own_correct: false },
-  board: { enabled: true },
+  board: { enabled: true, show: "all", pull: true },
   shared: { enabled: false },
-  session: { eval_quota: 25, grace: 3 },
+  session: { eval_quota: null, grace: 3, keep_working: 8 },
   budget: { minutes: 120, evals: null },
   stop: { on_target: null },
   confirm: { replays: 3, top_k: 3, max_candidates: 10 },
@@ -17298,11 +17298,66 @@ function loadTaskFile(projectDir2, taskPath) {
     throw new HostError("invalid_task", `task file is not valid JSON: ${e.message}`);
   }
 }
-function buildConfig(projectDir2, task, mode, n, budget, overrides) {
+var SETTINGS = {
+  visibility: { values: '"isolated" | "shared"', doc: "isolated: a writer reads only its own directory. shared: every checkpoint of every writer is readable by all (read-only).", to: (v) => (oneOf(v, ["isolated", "shared"], "visibility"), { shared: { enabled: v === "shared" } }) },
+  push: { values: '"verified" | "all" | "none"', doc: "Which lessons are delivered to teammates with their next result. verified: only checked ones. all: every lesson that is not withheld. none: nothing is delivered; writers read the board themselves.", to: (v) => (oneOf(v, ["verified", "all", "none"], "push"), { push: { policy: v } }) },
+  verifier: { values: "true | false", doc: 'Tasks without an evaluator only. false: no verifier agent; lessons appear on the board at once, labelled "not checked".', to: (v) => (bool(v, "verifier"), { verifier: { enabled: v } }) },
+  board: { values: '"all" | "verified" | "off"', doc: "What writers may read on the board. all: every visible lesson with its label. verified: only verified ones. off: no lessons at all (independent writers).", to: (v) => (oneOf(v, ["all", "verified", "off"], "board"), { board: { enabled: v !== "off", show: v === "verified" ? "verified" : "all" } }) },
+  pull: { values: "true | false", doc: "false: writers cannot page through the board; they only get what is pushed.", to: (v) => (bool(v, "pull"), { board: { pull: v } }) },
+  lesson_chars: { values: "integer", doc: "Maximum length of one lesson in characters (default 2000).", to: (v) => (posInt(v, "lesson_chars"), { lesson: { max_chars: v } }) },
+  lesson_lines: { values: "integer", doc: "Maximum number of non-empty lines in one lesson (default 15).", to: (v) => (posInt(v, "lesson_lines"), { lesson: { max_lines: v } }) },
+  copy_chars: { values: "integer", doc: "A lesson is rejected when it repeats this many consecutive characters of its author's own result (default 40; 0 turns the check off).", to: (v) => (nonNegInt(v, "copy_chars"), { lesson: { max_copy_chars: v } }) },
+  lessons_per_checkpoint: { values: "integer", doc: "How many lessons one checkpoint or candidate may carry (default 2).", to: (v) => (posInt(v, "lessons_per_checkpoint"), { lesson: { max_per_candidate: v } }) },
+  push_batch: { values: "integer", doc: "At most this many lessons are delivered with one result (default 5).", to: (v) => (posInt(v, "push_batch"), { push: { max_per_delivery: v } }) },
+  session_checkpoints: { values: "integer", doc: "Evaluations or checkpoints per writer session before it hands off to a fresh session (default 25 with an evaluator, 200 without).", to: (v) => (posInt(v, "session_checkpoints"), { session: { eval_quota: v } }) },
+  keep_working: { values: "integer", doc: "How many times a writer that tries to return while the run is open is sent back to work (default 8; 0 lets writers end sessions freely).", to: (v) => (nonNegInt(v, "keep_working"), { session: { keep_working: v } }) },
+  read_after_own_result: { values: "true | false", doc: "true: the board unlocks for a writer only after it has a correct result of its own (evaluator runs).", to: (v) => (bool(v, "read_after_own_result"), { read: { require_own_correct: v } }) }
+};
+function oneOf(v, vals, k) {
+  if (!vals.includes(v)) throw new ArgError(`settings.${k} must be one of ${vals.join(", ")}`);
+}
+function bool(v, k) {
+  if (typeof v !== "boolean") throw new ArgError(`settings.${k} must be true or false`);
+}
+function posInt(v, k) {
+  if (!Number.isInteger(v) || v < 1) throw new ArgError(`settings.${k} must be a positive integer`);
+}
+function nonNegInt(v, k) {
+  if (!Number.isInteger(v) || v < 0) throw new ArgError(`settings.${k} must be a non-negative integer`);
+}
+function settingsToOverrides(settings) {
+  if (settings == null) return {};
+  if (!isObj(settings)) throw new ArgError("settings must be an object");
+  let out = {};
+  for (const [k, v] of Object.entries(settings)) {
+    if (v === null || v === void 0) continue;
+    if (!(k in SETTINGS)) throw new ArgError(`unknown setting "${k}"; settings are: ${Object.keys(SETTINGS).join(", ")}`);
+    out = deepMerge(out, SETTINGS[k].to(v));
+  }
+  return out;
+}
+function effectiveSettings(cfg) {
+  return {
+    visibility: cfg.shared.enabled ? "shared" : "isolated",
+    push: cfg.board.enabled ? cfg.push.policy : "none",
+    verification: cfg.verify.kind === "command" ? "evaluator" : cfg.verifier.enabled ? "verifier agent" : "none",
+    board: !cfg.board.enabled ? "off" : cfg.board.show,
+    pull: cfg.board.enabled && cfg.board.pull,
+    lesson_chars: cfg.lesson.max_chars,
+    lesson_lines: cfg.lesson.max_lines,
+    copy_chars: cfg.lesson.max_copy_chars,
+    lessons_per_checkpoint: cfg.lesson.max_per_candidate,
+    push_batch: cfg.push.max_per_delivery,
+    session_checkpoints: cfg.session.eval_quota,
+    keep_working: cfg.session.keep_working
+  };
+}
+function buildConfig(projectDir2, task, mode, n, budget, overrides, settings = null) {
   if (!(mode in MODES)) throw new ArgError(`unknown mode "${mode}"; expected one of ${Object.keys(MODES).join(", ")}`);
   if (!isPosInt(n) || n > 99) throw new ArgError("n must be an integer between 1 and 99");
   let cfg = deepMerge(structuredClone(DEFAULTS), structuredClone(task));
   cfg = deepMerge(cfg, MODES[mode]);
+  cfg = deepMerge(cfg, settingsToOverrides(settings));
   if (isObj(budget)) cfg = deepMerge(cfg, { budget: Object.fromEntries(Object.entries(budget).filter(([, v]) => v !== null && v !== void 0)) });
   cfg = deepMerge(cfg, overrides);
   cfg.mode = mode;
@@ -17370,10 +17425,16 @@ function validateConfig(projectDir2, cfg) {
     }
   }
   need(["verified", "all", "none"].includes(cfg.push.policy), "push.policy must be verified, all or none");
+  need(isObj(cfg.board) && typeof cfg.board.enabled === "boolean" && typeof cfg.board.pull === "boolean" && ["all", "verified"].includes(cfg.board.show), "board must be {enabled, show: all|verified, pull}");
+  need(typeof cfg.verifier.enabled === "boolean", "verifier.enabled must be boolean");
+  if (cfg.session.eval_quota == null) cfg.session.eval_quota = agentMode ? 200 : 25;
+  if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.push.policy === "verified") throw new HostError("invalid_task", 'With the verifier off nothing can be verified, so push "verified" would never deliver a lesson. Set push to "all" or "none", or keep the verifier on.');
+  if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.board.show === "verified") throw new HostError("invalid_task", 'With the verifier off no lesson is ever verified, so board "verified" would stay empty. Set board to "all" or "off", or keep the verifier on.');
   need(isPosInt(cfg.push.max_per_delivery), "push.max_per_delivery must be a positive integer");
   need(typeof cfg.read.require_own_correct === "boolean", "read.require_own_correct must be boolean");
   need(isPosInt(cfg.session.eval_quota), "session.eval_quota must be a positive integer");
   need(Number.isInteger(cfg.session.grace) && cfg.session.grace >= 0, "session.grace must be a non-negative integer");
+  need(Number.isInteger(cfg.session.keep_working) && cfg.session.keep_working >= 0, "session.keep_working must be a non-negative integer");
   need(isNum(cfg.budget.minutes) && cfg.budget.minutes > 0, "budget.minutes must be a positive number");
   need(cfg.budget.evals == null || isPosInt(cfg.budget.evals), "budget.evals must be a positive integer or null");
   if (cfg.budget.evals === void 0) cfg.budget.evals = null;
@@ -17530,7 +17591,7 @@ function copiesFromWork(text, workTexts, minChars) {
 }
 var COPY_MESSAGE = "A lesson must not paste your own result. Describe the insight in your own words: what you tried, why it works, what you measured or checked. Teammates should be able to apply the idea, not copy the answer.";
 function verdictHeader(writerId, candId, verdict, note) {
-  const label = { pending: "pending verification", verified: "verified by verifier", unverified: "not verified", refuted: "refuted by verifier", withheld: "withheld" }[verdict];
+  const label = { pending: "pending verification", verified: "verified by verifier", unverified: "not verified", refuted: "refuted by verifier", withheld: "withheld", unchecked: "not checked" }[verdict];
   return "[" + [writerId, candId, note ? `${label}: ${note}` : label].join(" \xB7 ") + "]";
 }
 
@@ -17772,6 +17833,7 @@ function buildReport(runDir) {
     run_dir: runDir,
     task: cfg.name,
     mode: cfg.mode,
+    settings: cfg.board && cfg.board.show ? effectiveSettings(cfg) : null,
     n: cfg.n,
     closed_reason: closedReason,
     minutes: round(lastMinute, 1),
@@ -17827,6 +17889,7 @@ function renderReportMd(r) {
     L.push(`- **Winner: ${w.cand_id} by ${w.writer_id}** \xB7 confirmed ${fmtNum(w.confirmed_metric)} (replays ${w.replays.map(fmtNum).join(", ")}) \xB7 improvement ${pct(w.improvement)}${m.target != null ? ` \xB7 target ${w.reached_target ? "reached" : "not reached"}` : ""}`);
     L.push(`- Winner files: \`${w.path}\` (not applied to your workspace)`);
   } else L.push("- **Winner: none**");
+  if (r.settings) L.push(`- Settings: ${Object.entries(r.settings).map(([k, v2]) => `${k}=${v2}`).join(" \xB7 ")}`);
   L.push(`- Isolation: ${r.isolation}`, "");
   if (r.ranking) {
     L.push("## Judge ranking", "", "| writer | score | reason |", "|---|---|---|");
@@ -17872,7 +17935,7 @@ function renderReportMd(r) {
 
 // src/core/run.ts
 var pad = (n, w = 4) => String(n).padStart(w, "0");
-var AGENT_MODE_INSTRUCTIONS = 'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.';
+var agentModeInstructions = (verifierOn) => 'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. ' + (verifierOn ? "A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. " : 'Nobody checks lessons in this run: they appear on the board at once, labelled "not checked". Treat every lesson as an untested claim and say in yours how you checked it. ') + "When your result looks complete, do not return. Attack it: look for a better one, try to prove or disprove that it is the best possible, test teammates' lessons on your own work, and checkpoint each step. Returning early ends nothing; the host only starts another session for you. There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.";
 function safeBlobs(dir, globs) {
   try {
     return readBlobs(dir, matchFiles(dir, globs)).map((b) => b.data.toString("utf8"));
@@ -17892,6 +17955,7 @@ var Run = class {
     this.writerIds = file.writers;
     this.evalsLimit = this.cfg.budget.evals;
     this.agentMode = this.cfg.verify.kind === "agent";
+    this.verifierOn = this.agentMode && this.cfg.verifier.enabled;
     for (const id of this.writerIds) {
       this.writers.set(id, { id, best: null, hashes: /* @__PURE__ */ new Map(), candCount: 0, pending: /* @__PURE__ */ new Set(), sessions: /* @__PURE__ */ new Map(), current: -1, delivered: /* @__PURE__ */ new Set(), bestSeen: null, lessonTexts: /* @__PURE__ */ new Set(), stampMissing: /* @__PURE__ */ new Set() });
       this.queues.set(id, []);
@@ -17931,6 +17995,8 @@ var Run = class {
   slotWaiters = [];
   confirming = null;
   agentMode;
+  /** True when a verifier agent gates lessons (no evaluator, verifier enabled). */
+  verifierOn;
   bseqMax = 0;
   verifierSessions = /* @__PURE__ */ new Map();
   verifierCurrent = -1;
@@ -18175,8 +18241,15 @@ var Run = class {
       mode: this.cfg.mode,
       board_enabled: boardOn,
       verify_kind: this.cfg.verify.kind,
-      ...this.agentMode ? { how_this_run_works: AGENT_MODE_INSTRUCTIONS, criteria: this.cfg.criteria } : {},
-      mode_instructions: this.cfg.shared.enabled ? `Workspace mode: the directory at shared_dir is readable. It holds every evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' code there. It is read-only. The lesson tools are disabled.` : boardOn ? "" : "Independent mode: the lesson board is disabled. Work on your own; post_lesson and read_lessons return board_disabled.",
+      ...this.agentMode ? { how_this_run_works: agentModeInstructions(this.verifierOn), criteria: this.cfg.criteria } : {},
+      mode_instructions: [
+        this.cfg.shared.enabled ? `Shared visibility: the directory at shared_dir is readable. It holds every checkpoint or evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' work there. It is read-only.` : "",
+        !boardOn ? "The lesson board is off in this run: post_lesson and read_lessons return board_disabled." : [
+          this.cfg.push.policy === "none" ? "Lessons are not pushed in this run: nothing arrives with your results, so page through the board with read_lessons yourself." : this.cfg.push.policy === "all" ? "Every lesson is pushed in this run, checked or not: read the header of each one." : "",
+          !this.cfg.board.pull ? "read_lessons is off in this run: you only receive pushed lessons." : this.cfg.board.show === "verified" ? "The board shows verified lessons only." : ""
+        ].filter(Boolean).join(" ")
+      ].filter(Boolean).join(" "),
+      settings: effectiveSettings(this.cfg),
       goal: this.cfg.goal,
       work_dir: this.workDir(w.id),
       notes_path: path4.join(this.writerDir(w.id), "NOTES.md"),
@@ -18188,7 +18261,7 @@ var Run = class {
       own_best: w.best,
       budget: this.budgetView(),
       session: { index: a.session, evals_used: sv.evals_used, eval_quota: sv.eval_quota, exhausted },
-      lessons_unread: boardOn ? this.lessons.filter((l) => l.bseq != null && l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0
+      lessons_unread: boardOn && this.cfg.board.pull ? this.board().filter((l) => l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0
     };
   }
   /** Context files are copied next to the writer's work dir at init, so every path a writer needs shares one prefix. */
@@ -18344,7 +18417,8 @@ var Run = class {
   }
   /** Lessons visible on the board, in board order. Under agent verification a lesson appears only after its verdict. */
   board() {
-    return this.lessons.filter((l) => l.bseq != null).sort((a, b) => a.bseq - b.bseq);
+    const onlyVerified = this.cfg.board.show === "verified";
+    return this.lessons.filter((l) => l.bseq != null && (!onlyVerified || (this.agentMode ? l.verdict === "verified" : l.evidence.verified_gain))).sort((a, b) => a.bseq - b.bseq);
   }
   // ---------- queue ----------
   async admit(candId) {
@@ -18551,7 +18625,8 @@ var Run = class {
     if (c.lessons >= this.cfg.lesson.max_per_candidate) return reject("too_many_for_candidate", `${c.cand_id} already has ${c.lessons} lesson(s); the limit is ${this.cfg.lesson.max_per_candidate}. Attach new findings to a newer candidate.`);
     const evidence = { status: c.status, metric: c.metric, reference: c.reference, gain: c.gain == null ? null : round(c.gain, 4), verified_gain: c.verified_gain };
     const policy = this.cfg.push.policy;
-    const pushed = !this.agentMode && (policy === "all" || policy === "verified" && c.verified_gain && c.lessons === 0);
+    const gated = this.verifierOn;
+    const pushed = !gated && (policy === "all" || !this.agentMode && policy === "verified" && c.verified_gain && c.lessons === 0);
     const seq = this.lessons.length + 1;
     const lesson = {
       lesson_id: "L" + pad(seq),
@@ -18560,24 +18635,25 @@ var Run = class {
       cand_id: c.cand_id,
       minute: round((this.clock.now() - this.startMs) / 6e4, 2),
       evidence,
-      header: this.agentMode ? verdictHeader(w.id, c.cand_id, "pending", "") : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
+      header: gated ? verdictHeader(w.id, c.cand_id, "pending", "") : this.agentMode ? verdictHeader(w.id, c.cand_id, "unchecked", "") : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
       text,
       pushed,
-      bseq: this.agentMode ? null : seq,
-      verdict: this.agentMode ? "pending" : null,
+      bseq: gated ? null : seq,
+      verdict: gated ? "pending" : this.agentMode ? "unchecked" : null,
       verdict_note: ""
     };
     appendLineSync(this.lessonsPath, lesson);
     this.lessonStore.set(lesson.lesson_id, lesson);
     this.emit("lesson_posted", { lesson_id: lesson.lesson_id, seq, writer_id: w.id, cand_id: c.cand_id, chars: text.length, pushed });
     for (const r of this.lessonWaiters.splice(0)) r();
-    if (this.agentMode) return { lesson_id: lesson.lesson_id, pushed: false, status: "pending_verification", header: lesson.header, hint: "The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working." };
+    if (gated) return { lesson_id: lesson.lesson_id, pushed: false, status: "pending_verification", header: lesson.header, hint: "The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working." };
     return { lesson_id: lesson.lesson_id, pushed, header: lesson.header };
   }
   readLessons(a) {
     const w = this.writer(a.writer_id);
     this.checkIdentity(w.id, a.agent_id);
     if (!this.cfg.board.enabled) return { error: "board_disabled", message: `The lesson board is disabled in ${this.cfg.mode} mode.` };
+    if (!this.cfg.board.pull) return { error: "pull_disabled", message: "read_lessons is off in this run. Lessons reach you only when they are pushed with a result." };
     if (this.cfg.read.require_own_correct && !w.best) return { error: "locked", message: "The board unlocks once you have your own correct candidate. Get one first." };
     const cursor = Number.isInteger(a.cursor) && a.cursor >= 0 ? a.cursor : 0;
     const limit = Math.min(20, Math.max(1, Number.isInteger(a.limit) ? a.limit : 10));
@@ -18600,7 +18676,7 @@ var Run = class {
     writeJson(f, { agent_id: agentId, agent_type: agentType ?? null, role: "verifier", run_id: this.id, run_dir: this.dir, start_ms: this.startMs, scratch_dir: path4.join(this.dir, "verifier"), context_files: this.cfg.context_files.map((x) => path4.resolve(this.file.project_dir, x)) });
   }
   verifierGuard(agentId) {
-    if (!this.agentMode) throw new HostError("no_verifier", "This run gates lessons with an evaluation command; there is no verifier agent.");
+    if (!this.verifierOn) throw new HostError("no_verifier", this.agentMode ? "The verifier is switched off in this run; lessons are not checked." : "This run gates lessons with an evaluation command; there is no verifier agent.");
     if (this.writerOfAgent(agentId)) throw new HostError("forbidden", "writers cannot verify lessons");
   }
   /** Hand the verifier the oldest lesson that still needs a verdict; waits when there is none. */
@@ -18880,7 +18956,9 @@ var Host = class {
     const mode = str(a, "mode", false) ?? "lessonshare";
     const n = num(a, "n") ?? 8;
     const task = loadTaskFile(this.projectDir, taskPath);
-    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides);
+    const settings = { ...this.projectSettings(), ...isObj(a.settings) ? a.settings : {} };
+    if (a.settings != null && !isObj(a.settings)) throw new ArgError("settings must be an object");
+    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides, settings);
     const now = this.clock.now();
     const ts = new Date(now).toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
     const runId = `r-${ts}-${crypto2.randomBytes(2).toString("hex").slice(0, 3)}`;
@@ -18954,6 +19032,17 @@ ${o.log}
     run.log(`run created: mode=${mode} n=${n}`);
     return this.initResult(run, warnings, false);
   }
+  projectSettings() {
+    const f = path5.join(this.projectDir, ".lessonshare", "settings.json");
+    if (!fs5.existsSync(f)) return {};
+    try {
+      const s = JSON.parse(fs5.readFileSync(f, "utf8"));
+      if (!isObj(s)) throw new Error("not an object");
+      return s;
+    } catch (e) {
+      throw new HostError("invalid_settings", `.lessonshare/settings.json is not a valid JSON object: ${e.message}`);
+    }
+  }
   releaseOne(dir) {
     const f = path5.join(dir, "server.lock");
     try {
@@ -18969,6 +19058,8 @@ ${o.log}
       writers: run.writerIds,
       baseline: { status: run.baseline.status, metric: run.baseline.metric, noise: run.baseline.noise },
       verify_kind: run.cfg.verify.kind,
+      verifier: run.verifierOn,
+      settings: effectiveSettings(run.cfg),
       session_base: resumed ? run.maxSession() + 1 : 0,
       resumed,
       config: run.cfg,
@@ -18995,6 +19086,7 @@ var TOOLS = [
         mode: { type: "string", enum: ["independent", "lessonshare", "lessonshare-pull", "workspace"] },
         n: { type: "integer", description: "Number of writers. Default 8." },
         budget: { type: "object", properties: { minutes: { type: ["number", "null"] }, evals: { type: ["integer", "null"] } } },
+        settings: { type: "object", description: "Team switches: visibility (isolated|shared), push (verified|all|none), verifier (bool), board (all|verified|off), pull (bool), lesson_chars, lesson_lines, copy_chars, lessons_per_checkpoint, push_batch, session_checkpoints, read_after_own_result. Project defaults come from .lessonshare/settings.json." },
         overrides: { type: "object", description: "Partial overrides of configuration keys." },
         resume_run_id: { type: ["string", "null"], description: "Reopen this run for budget.minutes more minutes instead of creating one." }
       },

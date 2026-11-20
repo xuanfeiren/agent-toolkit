@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Set up a throwaway demo project and start a LessonShare team on it.
 #
-#   examples/demo.sh [open|toy] [--headless|--sdk] [--dir DIR] [-n N] [--minutes M]
+#   examples/demo.sh [open|toy] [--headless|--sdk] [--dir DIR] [-n N] [--minutes M] [--settings JSON]
+#
+#   --settings '{"visibility":"shared","push":"all"}'   team switches, see README "Team settings"
 #
 #   open   divisor-chain puzzle, no evaluator: writers + verifier agent + judge   (default)
 #   toy    API-cost optimization with a deterministic evaluator command
@@ -12,7 +14,7 @@
 set -euo pipefail
 
 PLUGIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TASK=open; HOW=interactive; DIR=""; N=3; MIN=10
+TASK=open; HOW=interactive; DIR=""; N=3; MIN=10; SET='{}'
 while [ $# -gt 0 ]; do
   case "$1" in
     open|toy) TASK=$1 ;;
@@ -21,7 +23,8 @@ while [ $# -gt 0 ]; do
     --dir) DIR=$2; shift ;;
     -n) N=$2; shift ;;
     --minutes) MIN=$2; shift ;;
-    *) sed -n 2,12p "${BASH_SOURCE[0]}"; exit 1 ;;
+    --settings) SET=$2; shift ;;
+    *) sed -n 2,14p "${BASH_SOURCE[0]}"; exit 1 ;;
   esac
   shift
 done
@@ -38,11 +41,11 @@ mkdir -p .lessonshare
 cp "$SRC/task.json" .lessonshare/task.json
 grep -qs '.lessonshare/runs/' .gitignore || echo ".lessonshare/runs/" >> .gitignore
 
-ARGS="{\"task\": \".lessonshare/task.json\", \"mode\": \"lessonshare\", \"n\": $N, \"minutes\": $MIN}"
+ARGS="{\"task\": \".lessonshare/task.json\", \"mode\": \"lessonshare\", \"n\": $N, \"minutes\": $MIN, \"settings\": $SET}"
 PROMPT="Launch the workflow named \"lessonshare:discover\" with the Workflow tool, passing args $ARGS. It runs in the background for about $((MIN + 3)) minutes: wait for its completion notification (do not poll, do not start it twice). Then show the report: winner, ranking or metric, and how many lessons were posted, verified and delivered."
 
 echo "project: $DIR"
-echo "watch the board in another terminal:"
+echo "the lesson board opens as a pane inside Claude Code (/lesson-board); or in another terminal:"
 echo "  cd $DIR && $PLUGIN/bin/lessonshare runs && $PLUGIN/bin/lessonshare board <run_id> --follow"
 echo
 
@@ -54,5 +57,5 @@ case "$HOW" in
     CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 exec claude -p "$PROMPT" --plugin-dir "$PLUGIN" --permission-mode default \
       --allowedTools "Workflow" "mcp__plugin_lessonshare_board__init_run" --output-format json < /dev/null ;;
   sdk)
-    exec node "$PLUGIN/examples/sdk/run.mjs" --project "$DIR" -n "$N" --minutes "$MIN" ;;
+    exec node "$PLUGIN/examples/sdk/run.mjs" --project "$DIR" -n "$N" --minutes "$MIN" --settings "$SET" ;;
 esac

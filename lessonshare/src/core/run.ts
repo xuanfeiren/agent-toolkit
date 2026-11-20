@@ -1,5 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { effectiveSettings } from './config'
 import type { Config } from './config'
 import { type EvalFn, type EvalOutcome, type EvalStatus, interpretPrecheck } from './evalcmd'
 import { COPY_MESSAGE, type Evidence, REJECT_MESSAGE, type Verdict, copiesFromWork, lessonHeader, validateLessonText, verdictHeader } from './lesson'
@@ -77,10 +78,13 @@ export interface Lesson {
 
 const pad = (n: number, w = 4) => String(n).padStart(w, '0')
 
-const AGENT_MODE_INSTRUCTIONS =
+const agentModeInstructions = (verifierOn: boolean) =>
   'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. ' +
   'evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. ' +
-  'A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. ' +
+  (verifierOn
+    ? 'A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. '
+    : 'Nobody checks lessons in this run: they appear on the board at once, labelled "not checked". Treat every lesson as an untested claim and say in yours how you checked it. ') +
+  'When your result looks complete, do not return. Attack it: look for a better one, try to prove or disprove that it is the best possible, test teammates\' lessons on your own work, and checkpoint each step. Returning early ends nothing; the host only starts another session for you. ' +
   'There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.'
 
 function safeBlobs(dir: string, globs: string[]): string[] {
@@ -122,6 +126,8 @@ export class Run {
   private slotWaiters: Array<() => void> = []
   private confirming: Promise<any> | null = null
   readonly agentMode: boolean
+  /** True when a verifier agent gates lessons (no evaluator, verifier enabled). */
+  readonly verifierOn: boolean
   private bseqMax = 0
   private verifierSessions = new Map<number, { verdicts: number }>()
   private verifierCurrent = -1
@@ -141,6 +147,7 @@ export class Run {
     this.writerIds = file.writers
     this.evalsLimit = this.cfg.budget.evals
     this.agentMode = this.cfg.verify.kind === 'agent'
+    this.verifierOn = this.agentMode && this.cfg.verifier.enabled
     for (const id of this.writerIds) {
       this.writers.set(id, { id, best: null, hashes: new Map(), candCount: 0, pending: new Set(), sessions: new Map(), current: -1, delivered: new Set(), bestSeen: null, lessonTexts: new Set(), stampMissing: new Set() })
       this.queues.set(id, [])
@@ -393,12 +400,19 @@ export class Run {
       mode: this.cfg.mode,
       board_enabled: boardOn,
       verify_kind: this.cfg.verify.kind,
-      ...(this.agentMode ? { how_this_run_works: AGENT_MODE_INSTRUCTIONS, criteria: this.cfg.criteria } : {}),
-      mode_instructions: this.cfg.shared.enabled
-        ? `Workspace mode: the directory at shared_dir is readable. It holds every evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' code there. It is read-only. The lesson tools are disabled.`
-        : boardOn
-          ? ''
-          : 'Independent mode: the lesson board is disabled. Work on your own; post_lesson and read_lessons return board_disabled.',
+      ...(this.agentMode ? { how_this_run_works: agentModeInstructions(this.verifierOn), criteria: this.cfg.criteria } : {}),
+      mode_instructions: [
+        this.cfg.shared.enabled
+          ? `Shared visibility: the directory at shared_dir is readable. It holds every checkpoint or evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' work there. It is read-only.`
+          : '',
+        !boardOn
+          ? 'The lesson board is off in this run: post_lesson and read_lessons return board_disabled.'
+          : [
+              this.cfg.push.policy === 'none' ? 'Lessons are not pushed in this run: nothing arrives with your results, so page through the board with read_lessons yourself.' : this.cfg.push.policy === 'all' ? 'Every lesson is pushed in this run, checked or not: read the header of each one.' : '',
+              !this.cfg.board.pull ? 'read_lessons is off in this run: you only receive pushed lessons.' : this.cfg.board.show === 'verified' ? 'The board shows verified lessons only.' : '',
+            ].filter(Boolean).join(' '),
+      ].filter(Boolean).join(' '),
+      settings: effectiveSettings(this.cfg),
       goal: this.cfg.goal,
       work_dir: this.workDir(w.id),
       notes_path: path.join(this.writerDir(w.id), 'NOTES.md'),
@@ -410,7 +424,7 @@ export class Run {
       own_best: w.best,
       budget: this.budgetView(),
       session: { index: a.session, evals_used: sv.evals_used, eval_quota: sv.eval_quota, exhausted },
-      lessons_unread: boardOn ? this.lessons.filter((l) => l.bseq != null && l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0,
+      lessons_unread: boardOn && this.cfg.board.pull ? this.board().filter((l) => l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0,
     }
   }
   /** Context files are copied next to the writer's work dir at init, so every path a writer needs shares one prefix. */
@@ -578,7 +592,8 @@ export class Run {
 
   /** Lessons visible on the board, in board order. Under agent verification a lesson appears only after its verdict. */
   private board(): Lesson[] {
-    return this.lessons.filter((l) => l.bseq != null).sort((a, b) => a.bseq! - b.bseq!)
+    const onlyVerified = this.cfg.board.show === 'verified'
+    return this.lessons.filter((l) => l.bseq != null && (!onlyVerified || (this.agentMode ? l.verdict === 'verified' : l.evidence.verified_gain))).sort((a, b) => a.bseq! - b.bseq!)
   }
 
   // ---------- queue ----------
@@ -792,7 +807,8 @@ export class Run {
     const evidence: Evidence = { status: c.status, metric: c.metric, reference: c.reference, gain: c.gain == null ? null : round(c.gain, 4), verified_gain: c.verified_gain }
     const policy = this.cfg.push.policy
     // With a verifier agent nothing is pushed or even visible until the verdict arrives.
-    const pushed = !this.agentMode && (policy === 'all' || (policy === 'verified' && c.verified_gain && c.lessons === 0))
+    const gated = this.verifierOn
+    const pushed = !gated && (policy === 'all' || (!this.agentMode && policy === 'verified' && c.verified_gain && c.lessons === 0))
     const seq = this.lessons.length + 1
     const lesson: Lesson = {
       lesson_id: 'L' + pad(seq),
@@ -801,18 +817,18 @@ export class Run {
       cand_id: c.cand_id,
       minute: round((this.clock.now() - this.startMs) / 60000, 2),
       evidence,
-      header: this.agentMode ? verdictHeader(w.id, c.cand_id, 'pending', '') : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
+      header: gated ? verdictHeader(w.id, c.cand_id, 'pending', '') : this.agentMode ? verdictHeader(w.id, c.cand_id, 'unchecked', '') : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
       text,
       pushed,
-      bseq: this.agentMode ? null : seq,
-      verdict: this.agentMode ? 'pending' : null,
+      bseq: gated ? null : seq,
+      verdict: gated ? 'pending' : this.agentMode ? 'unchecked' : null,
       verdict_note: '',
     }
     appendLineSync(this.lessonsPath, lesson)
     this.lessonStore.set(lesson.lesson_id, lesson)
     this.emit('lesson_posted', { lesson_id: lesson.lesson_id, seq, writer_id: w.id, cand_id: c.cand_id, chars: text.length, pushed })
     for (const r of this.lessonWaiters.splice(0)) r()
-    if (this.agentMode) return { lesson_id: lesson.lesson_id, pushed: false, status: 'pending_verification', header: lesson.header, hint: 'The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working.' }
+    if (gated) return { lesson_id: lesson.lesson_id, pushed: false, status: 'pending_verification', header: lesson.header, hint: 'The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working.' }
     return { lesson_id: lesson.lesson_id, pushed, header: lesson.header }
   }
 
@@ -820,6 +836,7 @@ export class Run {
     const w = this.writer(a.writer_id)
     this.checkIdentity(w.id, a.agent_id)
     if (!this.cfg.board.enabled) return { error: 'board_disabled', message: `The lesson board is disabled in ${this.cfg.mode} mode.` }
+    if (!this.cfg.board.pull) return { error: 'pull_disabled', message: 'read_lessons is off in this run. Lessons reach you only when they are pushed with a result.' }
     if (this.cfg.read.require_own_correct && !w.best) return { error: 'locked', message: 'The board unlocks once you have your own correct candidate. Get one first.' }
     const cursor = Number.isInteger(a.cursor) && a.cursor! >= 0 ? a.cursor! : 0
     const limit = Math.min(20, Math.max(1, Number.isInteger(a.limit) ? a.limit! : 10))
@@ -843,7 +860,7 @@ export class Run {
     writeJson(f, { agent_id: agentId, agent_type: agentType ?? null, role: 'verifier', run_id: this.id, run_dir: this.dir, start_ms: this.startMs, scratch_dir: path.join(this.dir, 'verifier'), context_files: this.cfg.context_files.map((x) => path.resolve(this.file.project_dir, x)) })
   }
   private verifierGuard(agentId: unknown) {
-    if (!this.agentMode) throw new HostError('no_verifier', 'This run gates lessons with an evaluation command; there is no verifier agent.')
+    if (!this.verifierOn) throw new HostError('no_verifier', this.agentMode ? 'The verifier is switched off in this run; lessons are not checked.' : 'This run gates lessons with an evaluation command; there is no verifier agent.')
     if (this.writerOfAgent(agentId)) throw new HostError('forbidden', 'writers cannot verify lessons')
   }
   /** Hand the verifier the oldest lesson that still needs a verdict; waits when there is none. */

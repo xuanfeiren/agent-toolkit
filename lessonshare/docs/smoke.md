@@ -98,3 +98,14 @@ Observations:
 Three attempts, none finished: (1) and (3) were cut off after 7 to 9 minutes by the account's 5-hour usage
 limit; (2) was stopped at minute 10 by headless mode's background-task ceiling
 (`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`, now documented in the README). No comparison data exists yet.
+
+## Board pane, team settings and keep-working guard (interactive, Claude Code 2.1.329)
+
+Two interactive runs of the open toy task, N=3, 6 minutes, driven through `examples/demo.sh open`.
+
+| Check | Result |
+|---|---|
+| Lesson board pane opens by itself when the run starts and refreshes | PASS (run `r-20261120-015008-d8a`) |
+| One card per lesson with verdict, verifier note, delivery targets | PASS |
+| `settings: {push: "all", lesson_chars: 900}` reaches the host and the report | PASS (run `r-20261120-014244-25d`: 7 lessons, 7 pushed) |
+| Writers stay in one session | Before the guard: 36 writer sessions in 6 minutes. With `keep_working` 8: 3 writer sessions, 7 early returns refused, 21 checkpoints |

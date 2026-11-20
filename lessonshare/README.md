@@ -56,6 +56,47 @@ To drive it from your own program, copy `examples/sdk/run.mjs`: it loads the plu
 `plugins: [{ type: 'local', path }]`, allows `Workflow` and `init_run`, and sets
 `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` so the session outlives the 10-minute headless limit.
 
+## Watching the board inside Claude Code
+
+The plugin draws the lesson board as a pane beside the chat. It opens by itself when a run starts in the
+session and refreshes every 3 seconds; `/lesson-board` opens it at any time for the newest run of the project.
+Each lesson is one card: id, author, checkpoint, minute; the verdict (verified, not verified, refuted,
+withheld, waiting) with the verifier's one-sentence note; whether it was pushed and to whom; then the text.
+The header shows the run's settings and how many lessons the host rejected (too long, code, or pasting the
+result). `f` cycles the filter (all, verified, waiting) and `o` flips the order while the pane has focus.
+The pane only reads the run's files. A terminal narrower than 110 columns shows it inline instead of docked.
+
+## Team settings
+
+Defaults: writers isolated, verified lessons pushed, verifier on, the whole board readable. Change them when
+you launch ("8 agents, 60 minutes, let them see each other, push everything"), as `settings` in the workflow
+args or the `init_run` call, or once per project in `.lessonshare/settings.json`. Launch settings win over the
+file; `overrides` (raw configuration keys) win over both.
+
+| Setting | Values (default first) | What it does |
+|---|---|---|
+| `visibility` | `isolated`, `shared` | `isolated`: a writer reads only its own directory. `shared`: every checkpoint of every writer is readable by all, read-only. |
+| `push` | `verified`, `all`, `none` | Which lessons are delivered to teammates with their next result: only checked ones, every lesson that is not withheld, or nothing (writers read the board themselves). |
+| `verifier` | `true`, `false` | Open tasks only. `false`: no verifier agent; lessons appear at once, labelled "not checked". Needs `push` `all` or `none`. |
+| `board` | `all`, `verified`, `off` | What writers may read: every visible lesson with its label, only verified ones, or no lessons at all. |
+| `pull` | `true`, `false` | `false`: writers cannot page through the board; they only get what is pushed. |
+| `lesson_chars` | 2000 | Maximum length of one lesson. |
+| `lesson_lines` | 15 | Maximum number of non-empty lines in one lesson. |
+| `copy_chars` | 40 | A lesson is rejected when it repeats this many consecutive characters of its author's result. 0 turns the check off. |
+| `lessons_per_checkpoint` | 2 | Lessons one checkpoint or candidate may carry. |
+| `push_batch` | 5 | At most this many lessons are delivered with one result. |
+| `session_checkpoints` | 200 without an evaluator, 25 with | Checkpoints or evaluations before a writer hands off to a fresh session. |
+| `keep_working` | 8 | How many times a writer that tries to return while the run is open is sent back to work. 0 lets writers end sessions freely. |
+| `read_after_own_result` | `false`, `true` | Evaluator runs: the board unlocks for a writer only after its own first correct result. |
+
+```json
+{ "task": ".lessonshare/task.json", "n": 8, "minutes": 60, "settings": { "visibility": "shared", "push": "all", "lesson_chars": 800 } }
+```
+
+The progress list of the workflow shows one row per writer session. Without an evaluator a writer normally
+stays in one session for the whole run, so you see N writers plus the verifier; a new row appears only when a
+session ends early and the next one takes over.
+
 ## Quick start: an open task (no evaluator)
 
 ```sh

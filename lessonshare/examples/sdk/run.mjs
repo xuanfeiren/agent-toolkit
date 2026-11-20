@@ -2,7 +2,7 @@
 // Run a LessonShare team from the Claude Agent SDK instead of the interactive CLI.
 //
 //   cd examples/sdk && npm install
-//   node run.mjs --project /path/to/project [--task .lessonshare/task.json] [--mode lessonshare] [-n 3] [--minutes 10]
+//   node run.mjs --project /path/to/project [--task .lessonshare/task.json] [--mode lessonshare] [-n 3] [--minutes 10] [--settings '{"push":"all"}']
 //
 // The project needs a task file (see ../toy and ../toy-open) and must live outside the plugin directory.
 // Prints what the lead session does, follows the lesson board while the team works, and ends with the
@@ -20,7 +20,7 @@ const opt = (name, dflt) => {
   return i >= 0 ? argv[i + 1] : dflt
 }
 const project = path.resolve(opt('--project', process.cwd()))
-const args = { task: opt('--task', '.lessonshare/task.json'), mode: opt('--mode', 'lessonshare'), n: Number(opt('-n', 3)), minutes: Number(opt('--minutes', 10)) }
+const args = { task: opt('--task', '.lessonshare/task.json'), mode: opt('--mode', 'lessonshare'), n: Number(opt('-n', 3)), minutes: Number(opt('--minutes', 10)), settings: JSON.parse(opt('--settings', '{}')) }
 if (!fs.existsSync(path.resolve(project, args.task))) {
   console.error(`no task file at ${path.resolve(project, args.task)}`)
   process.exit(1)

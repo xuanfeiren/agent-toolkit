@@ -25,7 +25,7 @@ export interface Config {
   candidate: { seed: string | null; files: string[] | null; max_bytes: number }
   /** command: an evaluation command gates lessons by measured gain. agent: a verifier agent checks each lesson. */
   verify: { kind: 'command' | 'agent' }
-  verifier: { session_quota: number; wait_s: number; note_max_chars: number; bash: boolean }
+  verifier: { enabled: boolean; session_quota: number; wait_s: number; note_max_chars: number; bash: boolean }
   eval: EvalSpec & {
     concurrency: number
     precheck: Partial<EvalSpec> | null
@@ -49,9 +49,11 @@ export interface Config {
   }
   push: { policy: 'verified' | 'all' | 'none'; max_per_delivery: number }
   read: { require_own_correct: boolean }
-  board: { enabled: boolean }
+  /** show: which lessons writers can read. pull: whether read_lessons is available. */
+  board: { enabled: boolean; show: 'all' | 'verified'; pull: boolean }
   shared: { enabled: boolean }
-  session: { eval_quota: number; grace: number }
+  /** keep_working: how many times a writer that tries to return early is sent back to work (0 = never). */
+  session: { eval_quota: number; grace: number; keep_working: number }
   budget: { minutes: number; evals: number | null }
   stop: { on_target: boolean | null }
   confirm: { replays: number; top_k: number; max_candidates: number }
@@ -66,7 +68,7 @@ export const DEFAULTS = {
   context_files: [] as string[],
   candidate: { seed: null, files: null, max_bytes: 1048576 },
   verify: { kind: null },
-  verifier: { session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
+  verifier: { enabled: true, session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
   eval: { command: null, cwd: '.', timeout_s: 600, concurrency: 1, precheck: null, precheck_concurrency: 4, block_s: 300, max_pending: 2, max_candidates: 384 },
   metric: { name: null, direction: null, target: null, min_gain: 0.01 },
   gate: { reference: 'author_best' },
@@ -90,9 +92,9 @@ export const DEFAULTS = {
   },
   push: { policy: 'verified', max_per_delivery: 5 },
   read: { require_own_correct: false },
-  board: { enabled: true },
+  board: { enabled: true, show: 'all', pull: true },
   shared: { enabled: false },
-  session: { eval_quota: 25, grace: 3 },
+  session: { eval_quota: null, grace: 3, keep_working: 8 },
   budget: { minutes: 120, evals: null },
   stop: { on_target: null },
   confirm: { replays: 3, top_k: 3, max_candidates: 10 },
@@ -123,12 +125,73 @@ export function loadTaskFile(projectDir: string, taskPath: string): any {
   }
 }
 
-/** Merge order: built-in defaults, task file, mode preset, overrides. Then validate and resolve paths. */
-export function buildConfig(projectDir: string, task: any, mode: Mode, n: number, budget: unknown, overrides: unknown): Config {
+/**
+ * The short, user-facing switches. Each maps onto configuration keys; anything finer goes through `overrides`.
+ * Defaults: isolated writers, verified lessons pushed, verifier on, whole board readable.
+ */
+export const SETTINGS: Record<string, { values: string; doc: string; to: (v: any) => unknown }> = {
+  visibility: { values: '"isolated" | "shared"', doc: 'isolated: a writer reads only its own directory. shared: every checkpoint of every writer is readable by all (read-only).', to: (v) => (oneOf(v, ['isolated', 'shared'], 'visibility'), { shared: { enabled: v === 'shared' } }) },
+  push: { values: '"verified" | "all" | "none"', doc: 'Which lessons are delivered to teammates with their next result. verified: only checked ones. all: every lesson that is not withheld. none: nothing is delivered; writers read the board themselves.', to: (v) => (oneOf(v, ['verified', 'all', 'none'], 'push'), { push: { policy: v } }) },
+  verifier: { values: 'true | false', doc: 'Tasks without an evaluator only. false: no verifier agent; lessons appear on the board at once, labelled "not checked".', to: (v) => (bool(v, 'verifier'), { verifier: { enabled: v } }) },
+  board: { values: '"all" | "verified" | "off"', doc: 'What writers may read on the board. all: every visible lesson with its label. verified: only verified ones. off: no lessons at all (independent writers).', to: (v) => (oneOf(v, ['all', 'verified', 'off'], 'board'), { board: { enabled: v !== 'off', show: v === 'verified' ? 'verified' : 'all' } }) },
+  pull: { values: 'true | false', doc: 'false: writers cannot page through the board; they only get what is pushed.', to: (v) => (bool(v, 'pull'), { board: { pull: v } }) },
+  lesson_chars: { values: 'integer', doc: 'Maximum length of one lesson in characters (default 2000).', to: (v) => (posInt(v, 'lesson_chars'), { lesson: { max_chars: v } }) },
+  lesson_lines: { values: 'integer', doc: 'Maximum number of non-empty lines in one lesson (default 15).', to: (v) => (posInt(v, 'lesson_lines'), { lesson: { max_lines: v } }) },
+  copy_chars: { values: 'integer', doc: "A lesson is rejected when it repeats this many consecutive characters of its author's own result (default 40; 0 turns the check off).", to: (v) => (nonNegInt(v, 'copy_chars'), { lesson: { max_copy_chars: v } }) },
+  lessons_per_checkpoint: { values: 'integer', doc: 'How many lessons one checkpoint or candidate may carry (default 2).', to: (v) => (posInt(v, 'lessons_per_checkpoint'), { lesson: { max_per_candidate: v } }) },
+  push_batch: { values: 'integer', doc: 'At most this many lessons are delivered with one result (default 5).', to: (v) => (posInt(v, 'push_batch'), { push: { max_per_delivery: v } }) },
+  session_checkpoints: { values: 'integer', doc: 'Evaluations or checkpoints per writer session before it hands off to a fresh session (default 25 with an evaluator, 200 without).', to: (v) => (posInt(v, 'session_checkpoints'), { session: { eval_quota: v } }) },
+  keep_working: { values: 'integer', doc: 'How many times a writer that tries to return while the run is open is sent back to work (default 8; 0 lets writers end sessions freely).', to: (v) => (nonNegInt(v, 'keep_working'), { session: { keep_working: v } }) },
+  read_after_own_result: { values: 'true | false', doc: 'true: the board unlocks for a writer only after it has a correct result of its own (evaluator runs).', to: (v) => (bool(v, 'read_after_own_result'), { read: { require_own_correct: v } }) },
+}
+function oneOf(v: unknown, vals: string[], k: string) {
+  if (!vals.includes(v as string)) throw new ArgError(`settings.${k} must be one of ${vals.join(', ')}`)
+}
+function bool(v: unknown, k: string) {
+  if (typeof v !== 'boolean') throw new ArgError(`settings.${k} must be true or false`)
+}
+function posInt(v: unknown, k: string) {
+  if (!Number.isInteger(v) || (v as number) < 1) throw new ArgError(`settings.${k} must be a positive integer`)
+}
+function nonNegInt(v: unknown, k: string) {
+  if (!Number.isInteger(v) || (v as number) < 0) throw new ArgError(`settings.${k} must be a non-negative integer`)
+}
+export function settingsToOverrides(settings: unknown): unknown {
+  if (settings == null) return {}
+  if (!isObj(settings)) throw new ArgError('settings must be an object')
+  let out: unknown = {}
+  for (const [k, v] of Object.entries(settings)) {
+    if (v === null || v === undefined) continue
+    if (!(k in SETTINGS)) throw new ArgError(`unknown setting "${k}"; settings are: ${Object.keys(SETTINGS).join(', ')}`)
+    out = deepMerge(out, SETTINGS[k].to(v))
+  }
+  return out
+}
+/** The effective switches of a run, in the vocabulary of SETTINGS. */
+export function effectiveSettings(cfg: Config) {
+  return {
+    visibility: cfg.shared.enabled ? 'shared' : 'isolated',
+    push: cfg.board.enabled ? cfg.push.policy : 'none',
+    verification: cfg.verify.kind === 'command' ? 'evaluator' : cfg.verifier.enabled ? 'verifier agent' : 'none',
+    board: !cfg.board.enabled ? 'off' : cfg.board.show,
+    pull: cfg.board.enabled && cfg.board.pull,
+    lesson_chars: cfg.lesson.max_chars,
+    lesson_lines: cfg.lesson.max_lines,
+    copy_chars: cfg.lesson.max_copy_chars,
+    lessons_per_checkpoint: cfg.lesson.max_per_candidate,
+    push_batch: cfg.push.max_per_delivery,
+    session_checkpoints: cfg.session.eval_quota,
+    keep_working: cfg.session.keep_working,
+  }
+}
+
+/** Merge order: built-in defaults, task file, mode preset, settings, budget, overrides. Then validate and resolve paths. */
+export function buildConfig(projectDir: string, task: any, mode: Mode, n: number, budget: unknown, overrides: unknown, settings: unknown = null): Config {
   if (!(mode in MODES)) throw new ArgError(`unknown mode "${mode}"; expected one of ${Object.keys(MODES).join(', ')}`)
   if (!isPosInt(n) || n > 99) throw new ArgError('n must be an integer between 1 and 99')
   let cfg: any = deepMerge(structuredClone(DEFAULTS), structuredClone(task))
   cfg = deepMerge(cfg, MODES[mode])
+  cfg = deepMerge(cfg, settingsToOverrides(settings))
   if (isObj(budget)) cfg = deepMerge(cfg, { budget: Object.fromEntries(Object.entries(budget).filter(([, v]) => v !== null && v !== undefined)) })
   cfg = deepMerge(cfg, overrides)
   cfg.mode = mode
@@ -197,10 +260,17 @@ export function validateConfig(projectDir: string, cfg: any): void {
     }
   }
   need(['verified', 'all', 'none'].includes(cfg.push.policy), 'push.policy must be verified, all or none')
+  need(isObj(cfg.board) && typeof cfg.board.enabled === 'boolean' && typeof cfg.board.pull === 'boolean' && ['all', 'verified'].includes(cfg.board.show), 'board must be {enabled, show: all|verified, pull}')
+  need(typeof cfg.verifier.enabled === 'boolean', 'verifier.enabled must be boolean')
+  // One long session per writer when nothing is measured; shorter sessions when an evaluator sets the pace.
+  if (cfg.session.eval_quota == null) cfg.session.eval_quota = agentMode ? 200 : 25
+  if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.push.policy === 'verified') throw new HostError('invalid_task', 'With the verifier off nothing can be verified, so push "verified" would never deliver a lesson. Set push to "all" or "none", or keep the verifier on.')
+  if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.board.show === 'verified') throw new HostError('invalid_task', 'With the verifier off no lesson is ever verified, so board "verified" would stay empty. Set board to "all" or "off", or keep the verifier on.')
   need(isPosInt(cfg.push.max_per_delivery), 'push.max_per_delivery must be a positive integer')
   need(typeof cfg.read.require_own_correct === 'boolean', 'read.require_own_correct must be boolean')
   need(isPosInt(cfg.session.eval_quota), 'session.eval_quota must be a positive integer')
   need(Number.isInteger(cfg.session.grace) && cfg.session.grace >= 0, 'session.grace must be a non-negative integer')
+  need(Number.isInteger(cfg.session.keep_working) && cfg.session.keep_working >= 0, 'session.keep_working must be a non-negative integer')
   need(isNum(cfg.budget.minutes) && cfg.budget.minutes > 0, 'budget.minutes must be a positive number')
   need(cfg.budget.evals == null || isPosInt(cfg.budget.evals), 'budget.evals must be a positive integer or null')
   if (cfg.budget.evals === undefined) cfg.budget.evals = null

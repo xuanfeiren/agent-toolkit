@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { type Config, type Mode, buildConfig, loadTaskFile, writerIds } from './config'
+import { type Config, type Mode, buildConfig, effectiveSettings, loadTaskFile, writerIds } from './config'
 import { type EvalCtx, type EvalFn, type EvalOutcome, runCommand, tailLines } from './evalcmd'
 import { type Baseline, Run, type RunFile } from './run'
 import { ArgError, type Clock, HostError, copyDir, isObj, matchFiles, median, readBlobs, readJson, realClock, resolveInside, round, writeBlobs, writeJson } from './util'
@@ -171,7 +171,10 @@ export class Host {
     const mode = (str(a, 'mode', false) ?? 'lessonshare') as Mode
     const n = num(a, 'n') ?? 8
     const task = loadTaskFile(this.projectDir, taskPath)
-    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides)
+    // Project defaults (.lessonshare/settings.json), then the settings given at launch.
+    const settings = { ...this.projectSettings(), ...(isObj(a.settings) ? a.settings : {}) }
+    if (a.settings != null && !isObj(a.settings)) throw new ArgError('settings must be an object')
+    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides, settings)
     const now = this.clock.now()
     const ts = new Date(now).toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
     const runId = `r-${ts}-${crypto.randomBytes(2).toString('hex').slice(0, 3)}`
@@ -246,6 +249,17 @@ export class Host {
     run.log(`run created: mode=${mode} n=${n}`)
     return this.initResult(run, warnings, false)
   }
+  private projectSettings(): Record<string, unknown> {
+    const f = path.join(this.projectDir, '.lessonshare', 'settings.json')
+    if (!fs.existsSync(f)) return {}
+    try {
+      const s = JSON.parse(fs.readFileSync(f, 'utf8'))
+      if (!isObj(s)) throw new Error('not an object')
+      return s as Record<string, unknown>
+    } catch (e) {
+      throw new HostError('invalid_settings', `.lessonshare/settings.json is not a valid JSON object: ${(e as Error).message}`)
+    }
+  }
   private releaseOne(dir: string) {
     const f = path.join(dir, 'server.lock')
     try {
@@ -262,6 +276,8 @@ export class Host {
       writers: run.writerIds,
       baseline: { status: run.baseline.status, metric: run.baseline.metric, noise: run.baseline.noise },
       verify_kind: run.cfg.verify.kind,
+      verifier: run.verifierOn,
+      settings: effectiveSettings(run.cfg),
       session_base: resumed ? run.maxSession() + 1 : 0,
       resumed,
       config: run.cfg,

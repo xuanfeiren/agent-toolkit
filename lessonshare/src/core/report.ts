@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import type { RunFile } from './run'
+import { effectiveSettings } from './config'
 import { fmtNum, listFiles, median, readJson, readJsonl, round } from './util'
 
 const pct = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? 'n/a' : (x * 100).toFixed(1) + '%')
@@ -254,6 +255,7 @@ export function buildReport(runDir: string): any {
     run_dir: runDir,
     task: cfg.name,
     mode: cfg.mode,
+    settings: cfg.board && cfg.board.show ? effectiveSettings(cfg) : null,
     n: cfg.n,
     closed_reason: closedReason,
     minutes: round(lastMinute, 1),
@@ -312,6 +314,7 @@ export function renderReportMd(r: any): string {
     L.push(`- **Winner: ${w.cand_id} by ${w.writer_id}** · confirmed ${fmtNum(w.confirmed_metric)} (replays ${w.replays.map(fmtNum).join(', ')}) · improvement ${pct(w.improvement)}${m.target != null ? ` · target ${w.reached_target ? 'reached' : 'not reached'}` : ''}`)
     L.push(`- Winner files: \`${w.path}\` (not applied to your workspace)`)
   } else L.push('- **Winner: none**')
+  if (r.settings) L.push(`- Settings: ${Object.entries(r.settings).map(([k, v]) => `${k}=${v}`).join(' · ')}`)
   L.push(`- Isolation: ${r.isolation}`, '')
   if (r.ranking) {
     L.push('## Judge ranking', '', '| writer | score | reason |', '|---|---|---|')

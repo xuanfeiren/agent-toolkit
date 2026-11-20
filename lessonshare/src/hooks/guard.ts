@@ -1,4 +1,6 @@
 // PreToolUse hook for file tools. Active only for LessonShare writers: default-deny outside the writer's own directory.
+// It also keeps a writer in its session: a writer that tries to return its result while the run is open and its
+// session has quota left is sent back to work (a bounded number of times).
 // Runs on every file tool call of the session, so it uses Node built-ins only and exits early when not concerned.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -60,6 +62,7 @@ function main(raw: string) {
   const inp = JSON.parse(raw)
   if (typeof inp.agent_type !== 'string' || !(WRITER_TYPE.test(inp.agent_type) || VERIFIER_TYPE.test(inp.agent_type))) process.exit(0)
   const tool: string = inp.tool_name
+  if (tool === 'StructuredOutput') return keepWorking(inp)
   const isRead = READ_TOOLS.has(tool)
   const isWrite = WRITE_TOOLS.has(tool)
   if (!isRead && !isWrite) process.exit(0)
@@ -92,6 +95,52 @@ function main(raw: string) {
     if (map.shared_dir && inside(realResolve(map.shared_dir), abs)) decide('allow', 'shared workspace (read-only)')
   }
   deny(`${isWrite ? 'writing' : 'reading'} ${abs} is outside your workspace.`, abs)
+}
+
+/** A writer returns by calling StructuredOutput. While the run is open and the session has quota left, refuse it. */
+function keepWorking(inp: any): never {
+  if (!WRITER_TYPE.test(inp.agent_type)) process.exit(0)
+  const agentId = String(inp.agent_id ?? '')
+  const projectDir = process.env.CLAUDE_PROJECT_DIR || inp.cwd || process.cwd()
+  const map = /^[A-Za-z0-9_.-]+$/.test(agentId) ? findMapping(projectDir, agentId) : null
+  if (!map || map.role === 'verifier') process.exit(0)
+  const cfg = JSON.parse(fs.readFileSync(path.join(map.run_dir, 'run.json'), 'utf8')).config
+  const max = cfg.session?.keep_working ?? 0
+  if (!(max > 0)) process.exit(0)
+  let open = true
+  let used = 0
+  let later = false
+  for (const line of fs.readFileSync(path.join(map.run_dir, 'events.jsonl'), 'utf8').split('\n')) {
+    if (!line.includes('"type":"run_') && !line.includes(map.writer_id)) continue
+    let e: any
+    try {
+      e = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (e.type === 'run_closed' || e.type === 'run_confirmed') open = false
+    else if (e.type === 'run_reopened') open = true
+    else if (e.writer_id === map.writer_id && e.type === 'eval_submitted' && e.session === map.session) used++
+    else if (e.writer_id === map.writer_id && e.type === 'join' && e.session > map.session) later = true
+  }
+  if (!open || later || used >= cfg.session.eval_quota) process.exit(0)
+  const counter = path.join(map.run_dir, 'agents', agentId + '.returns')
+  let n = 0
+  try {
+    n = Number(fs.readFileSync(counter, 'utf8')) || 0
+  } catch {
+    /* first time */
+  }
+  if (n >= max) process.exit(0)
+  fs.writeFileSync(counter, String(n + 1))
+  const now = Date.now()
+  const left = map.start_ms && cfg.budget?.minutes ? Math.round((cfg.budget.minutes - (now - map.start_ms) / 60000) * 10) / 10 : null
+  try {
+    fs.appendFileSync(path.join(map.run_dir, 'events.jsonl'), JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'return_blocked', agent_id: agentId, writer_id: map.writer_id, session: map.session, count: n + 1 }) + '\n')
+  } catch {
+    /* best effort */
+  }
+  return decide('deny', `LessonShare: the run is still open${left != null && left > 0 ? ` (about ${left} minutes left)` : ''} and your session has ${cfg.session.eval_quota - used} checkpoints left. Do not return yet. Keep working in this session: try to beat your current result, try to prove or disprove that it is the best possible, test a teammate's lesson on your own work, and record a checkpoint for each step. Return only when a tool result says budget.run_state is "closed" or session.must_hand_off is true.`)
 }
 
 /** The verifier reads everything in its run (and the task context) and writes only in its scratch directory. */

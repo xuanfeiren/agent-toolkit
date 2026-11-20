@@ -65,17 +65,45 @@ Mention briefly:
 
 ## 4. Confirm and launch
 
-Show: the goal and criteria as written, N, minutes, and that results are judged by an agent, not measured.
+Show: the goal and criteria as written, N, minutes, the team settings in one line (defaults: agents isolated,
+verified lessons pushed, verifier on), and that results are judged by an agent, not measured.
 After the user agrees, start the workflow `lessonshare:discover` with the Workflow tool:
 
 ```json
-{ "task": ".lessonshare/task.json", "mode": "lessonshare", "n": 8, "minutes": 60 }
+{ "task": ".lessonshare/task.json", "mode": "lessonshare", "n": 8, "minutes": 60, "settings": {} }
 ```
+
+### Team settings
+
+Put what the user asked for in `settings`; leave out the rest. If the user said nothing, use the defaults and
+do not ask. Project-wide defaults can live in `.lessonshare/settings.json` (same keys); launch settings win.
+
+| Setting | Values (default first) | What it does |
+|---|---|---|
+| `visibility` | `isolated`, `shared` | `isolated`: a writer reads only its own directory. `shared`: every checkpoint of every writer is readable by all, read-only. |
+| `push` | `verified`, `all`, `none` | Which lessons are delivered to teammates with their next result: only checked ones, every lesson that is not withheld, or nothing (writers read the board themselves). |
+| `verifier` | `true`, `false` | Open tasks only. `false`: no verifier agent; lessons appear at once, labelled "not checked". Needs `push` `all` or `none`. |
+| `board` | `all`, `verified`, `off` | What writers may read: every visible lesson with its label, only verified ones, or no lessons at all. |
+| `pull` | `true`, `false` | `false`: writers cannot page through the board; they only get what is pushed. |
+| `lesson_chars` | 2000 | Maximum length of one lesson. |
+| `lesson_lines` | 15 | Maximum number of non-empty lines in one lesson. |
+| `copy_chars` | 40 | A lesson is rejected when it repeats this many consecutive characters of its author's result. 0 turns the check off. |
+| `lessons_per_checkpoint` | 2 | Lessons one checkpoint or candidate may carry. |
+| `push_batch` | 5 | At most this many lessons are delivered with one result. |
+| `session_checkpoints` | 200 without an evaluator, 25 with | Checkpoints or evaluations before a writer hands off to a fresh session. |
+| `keep_working` | 8 | How many times a writer that tries to return while the run is open is sent back to work. 0 lets writers end sessions freely. |
+| `read_after_own_result` | `false`, `true` | Evaluator runs: the board unlocks for a writer only after its own first correct result. |
+
+Map the user's words: "let them see each other" is `visibility: shared`; "push everything" is `push: all`;
+"no pushing, they read the board" is `push: none`; "no verifier" is `verifier: false` with `push: all`;
+"shorter lessons" is `lesson_chars`; "stricter about pasting the answer" is a lower `copy_chars`.
 
 Other args: `overrides` (configuration keys, see `skills/plan/reference.md`), `resume_run_id` (continue a run
 for `minutes` more), `mode` (`independent` for a no-sharing control run). There is one permission prompt, for
-`init_run`. The workflow runs in the background; do not start it twice. The user can watch with
-`lessonshare board <run_id> --follow`.
+`init_run`. The workflow runs in the background; do not start it twice. The lesson board opens as a pane
+beside the chat when the run starts (one card per lesson; `/lesson-board` reopens it). In a plain terminal:
+`lessonshare board <run_id> --follow`. The progress list shows one row per writer session: normally N writers
+plus the verifier; a new row appears only when a writer session ends and the next one takes over.
 
 ## 5. Wrap up
 

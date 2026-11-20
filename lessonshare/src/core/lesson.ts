@@ -63,10 +63,10 @@ export function copiesFromWork(text: string, workTexts: string[], minChars: numb
 
 export const COPY_MESSAGE = 'A lesson must not paste your own result. Describe the insight in your own words: what you tried, why it works, what you measured or checked. Teammates should be able to apply the idea, not copy the answer.'
 
-export type Verdict = 'pending' | 'verified' | 'unverified' | 'refuted' | 'withheld'
+export type Verdict = 'pending' | 'verified' | 'unverified' | 'refuted' | 'withheld' | 'unchecked'
 
 /** Header for lessons checked by the verifier agent instead of a measured gain. */
 export function verdictHeader(writerId: string, candId: string, verdict: Verdict, note: string): string {
-  const label = { pending: 'pending verification', verified: 'verified by verifier', unverified: 'not verified', refuted: 'refuted by verifier', withheld: 'withheld' }[verdict]
+  const label = { pending: 'pending verification', verified: 'verified by verifier', unverified: 'not verified', refuted: 'refuted by verifier', withheld: 'withheld', unchecked: 'not checked' }[verdict]
   return '[' + [writerId, candId, note ? `${label}: ${note}` : label].join(' · ') + ']'
 }

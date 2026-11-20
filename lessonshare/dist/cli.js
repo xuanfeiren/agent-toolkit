@@ -226,7 +226,7 @@ var DEFAULTS = {
   context_files: [],
   candidate: { seed: null, files: null, max_bytes: 1048576 },
   verify: { kind: null },
-  verifier: { session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
+  verifier: { enabled: true, session_quota: 30, wait_s: 600, note_max_chars: 300, bash: false },
   eval: { command: null, cwd: ".", timeout_s: 600, concurrency: 1, precheck: null, precheck_concurrency: 4, block_s: 300, max_pending: 2, max_candidates: 384 },
   metric: { name: null, direction: null, target: null, min_gain: 0.01 },
   gate: { reference: "author_best" },
@@ -250,9 +250,9 @@ var DEFAULTS = {
   },
   push: { policy: "verified", max_per_delivery: 5 },
   read: { require_own_correct: false },
-  board: { enabled: true },
+  board: { enabled: true, show: "all", pull: true },
   shared: { enabled: false },
-  session: { eval_quota: 25, grace: 3 },
+  session: { eval_quota: null, grace: 3, keep_working: 8 },
   budget: { minutes: 120, evals: null },
   stop: { on_target: null },
   confirm: { replays: 3, top_k: 3, max_candidates: 10 },
@@ -280,11 +280,66 @@ function loadTaskFile(projectDir2, taskPath) {
     throw new HostError("invalid_task", `task file is not valid JSON: ${e.message}`);
   }
 }
-function buildConfig(projectDir2, task, mode, n, budget, overrides) {
+var SETTINGS = {
+  visibility: { values: '"isolated" | "shared"', doc: "isolated: a writer reads only its own directory. shared: every checkpoint of every writer is readable by all (read-only).", to: (v) => (oneOf(v, ["isolated", "shared"], "visibility"), { shared: { enabled: v === "shared" } }) },
+  push: { values: '"verified" | "all" | "none"', doc: "Which lessons are delivered to teammates with their next result. verified: only checked ones. all: every lesson that is not withheld. none: nothing is delivered; writers read the board themselves.", to: (v) => (oneOf(v, ["verified", "all", "none"], "push"), { push: { policy: v } }) },
+  verifier: { values: "true | false", doc: 'Tasks without an evaluator only. false: no verifier agent; lessons appear on the board at once, labelled "not checked".', to: (v) => (bool(v, "verifier"), { verifier: { enabled: v } }) },
+  board: { values: '"all" | "verified" | "off"', doc: "What writers may read on the board. all: every visible lesson with its label. verified: only verified ones. off: no lessons at all (independent writers).", to: (v) => (oneOf(v, ["all", "verified", "off"], "board"), { board: { enabled: v !== "off", show: v === "verified" ? "verified" : "all" } }) },
+  pull: { values: "true | false", doc: "false: writers cannot page through the board; they only get what is pushed.", to: (v) => (bool(v, "pull"), { board: { pull: v } }) },
+  lesson_chars: { values: "integer", doc: "Maximum length of one lesson in characters (default 2000).", to: (v) => (posInt(v, "lesson_chars"), { lesson: { max_chars: v } }) },
+  lesson_lines: { values: "integer", doc: "Maximum number of non-empty lines in one lesson (default 15).", to: (v) => (posInt(v, "lesson_lines"), { lesson: { max_lines: v } }) },
+  copy_chars: { values: "integer", doc: "A lesson is rejected when it repeats this many consecutive characters of its author's own result (default 40; 0 turns the check off).", to: (v) => (nonNegInt(v, "copy_chars"), { lesson: { max_copy_chars: v } }) },
+  lessons_per_checkpoint: { values: "integer", doc: "How many lessons one checkpoint or candidate may carry (default 2).", to: (v) => (posInt(v, "lessons_per_checkpoint"), { lesson: { max_per_candidate: v } }) },
+  push_batch: { values: "integer", doc: "At most this many lessons are delivered with one result (default 5).", to: (v) => (posInt(v, "push_batch"), { push: { max_per_delivery: v } }) },
+  session_checkpoints: { values: "integer", doc: "Evaluations or checkpoints per writer session before it hands off to a fresh session (default 25 with an evaluator, 200 without).", to: (v) => (posInt(v, "session_checkpoints"), { session: { eval_quota: v } }) },
+  keep_working: { values: "integer", doc: "How many times a writer that tries to return while the run is open is sent back to work (default 8; 0 lets writers end sessions freely).", to: (v) => (nonNegInt(v, "keep_working"), { session: { keep_working: v } }) },
+  read_after_own_result: { values: "true | false", doc: "true: the board unlocks for a writer only after it has a correct result of its own (evaluator runs).", to: (v) => (bool(v, "read_after_own_result"), { read: { require_own_correct: v } }) }
+};
+function oneOf(v, vals, k) {
+  if (!vals.includes(v)) throw new ArgError(`settings.${k} must be one of ${vals.join(", ")}`);
+}
+function bool(v, k) {
+  if (typeof v !== "boolean") throw new ArgError(`settings.${k} must be true or false`);
+}
+function posInt(v, k) {
+  if (!Number.isInteger(v) || v < 1) throw new ArgError(`settings.${k} must be a positive integer`);
+}
+function nonNegInt(v, k) {
+  if (!Number.isInteger(v) || v < 0) throw new ArgError(`settings.${k} must be a non-negative integer`);
+}
+function settingsToOverrides(settings) {
+  if (settings == null) return {};
+  if (!isObj(settings)) throw new ArgError("settings must be an object");
+  let out = {};
+  for (const [k, v] of Object.entries(settings)) {
+    if (v === null || v === void 0) continue;
+    if (!(k in SETTINGS)) throw new ArgError(`unknown setting "${k}"; settings are: ${Object.keys(SETTINGS).join(", ")}`);
+    out = deepMerge(out, SETTINGS[k].to(v));
+  }
+  return out;
+}
+function effectiveSettings(cfg) {
+  return {
+    visibility: cfg.shared.enabled ? "shared" : "isolated",
+    push: cfg.board.enabled ? cfg.push.policy : "none",
+    verification: cfg.verify.kind === "command" ? "evaluator" : cfg.verifier.enabled ? "verifier agent" : "none",
+    board: !cfg.board.enabled ? "off" : cfg.board.show,
+    pull: cfg.board.enabled && cfg.board.pull,
+    lesson_chars: cfg.lesson.max_chars,
+    lesson_lines: cfg.lesson.max_lines,
+    copy_chars: cfg.lesson.max_copy_chars,
+    lessons_per_checkpoint: cfg.lesson.max_per_candidate,
+    push_batch: cfg.push.max_per_delivery,
+    session_checkpoints: cfg.session.eval_quota,
+    keep_working: cfg.session.keep_working
+  };
+}
+function buildConfig(projectDir2, task, mode, n, budget, overrides, settings = null) {
   if (!(mode in MODES)) throw new ArgError(`unknown mode "${mode}"; expected one of ${Object.keys(MODES).join(", ")}`);
   if (!isPosInt(n) || n > 99) throw new ArgError("n must be an integer between 1 and 99");
   let cfg = deepMerge(structuredClone(DEFAULTS), structuredClone(task));
   cfg = deepMerge(cfg, MODES[mode]);
+  cfg = deepMerge(cfg, settingsToOverrides(settings));
   if (isObj(budget)) cfg = deepMerge(cfg, { budget: Object.fromEntries(Object.entries(budget).filter(([, v]) => v !== null && v !== void 0)) });
   cfg = deepMerge(cfg, overrides);
   cfg.mode = mode;
@@ -352,10 +407,16 @@ function validateConfig(projectDir2, cfg) {
     }
   }
   need(["verified", "all", "none"].includes(cfg.push.policy), "push.policy must be verified, all or none");
+  need(isObj(cfg.board) && typeof cfg.board.enabled === "boolean" && typeof cfg.board.pull === "boolean" && ["all", "verified"].includes(cfg.board.show), "board must be {enabled, show: all|verified, pull}");
+  need(typeof cfg.verifier.enabled === "boolean", "verifier.enabled must be boolean");
+  if (cfg.session.eval_quota == null) cfg.session.eval_quota = agentMode ? 200 : 25;
+  if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.push.policy === "verified") throw new HostError("invalid_task", 'With the verifier off nothing can be verified, so push "verified" would never deliver a lesson. Set push to "all" or "none", or keep the verifier on.');
+  if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.board.show === "verified") throw new HostError("invalid_task", 'With the verifier off no lesson is ever verified, so board "verified" would stay empty. Set board to "all" or "off", or keep the verifier on.');
   need(isPosInt(cfg.push.max_per_delivery), "push.max_per_delivery must be a positive integer");
   need(typeof cfg.read.require_own_correct === "boolean", "read.require_own_correct must be boolean");
   need(isPosInt(cfg.session.eval_quota), "session.eval_quota must be a positive integer");
   need(Number.isInteger(cfg.session.grace) && cfg.session.grace >= 0, "session.grace must be a non-negative integer");
+  need(Number.isInteger(cfg.session.keep_working) && cfg.session.keep_working >= 0, "session.keep_working must be a non-negative integer");
   need(isNum(cfg.budget.minutes) && cfg.budget.minutes > 0, "budget.minutes must be a positive number");
   need(cfg.budget.evals == null || isPosInt(cfg.budget.evals), "budget.evals must be a positive integer or null");
   if (cfg.budget.evals === void 0) cfg.budget.evals = null;
@@ -518,7 +579,7 @@ function copiesFromWork(text, workTexts, minChars) {
 }
 var COPY_MESSAGE = "A lesson must not paste your own result. Describe the insight in your own words: what you tried, why it works, what you measured or checked. Teammates should be able to apply the idea, not copy the answer.";
 function verdictHeader(writerId, candId, verdict, note) {
-  const label = { pending: "pending verification", verified: "verified by verifier", unverified: "not verified", refuted: "refuted by verifier", withheld: "withheld" }[verdict];
+  const label = { pending: "pending verification", verified: "verified by verifier", unverified: "not verified", refuted: "refuted by verifier", withheld: "withheld", unchecked: "not checked" }[verdict];
   return "[" + [writerId, candId, note ? `${label}: ${note}` : label].join(" \xB7 ") + "]";
 }
 
@@ -760,6 +821,7 @@ function buildReport(runDir2) {
     run_dir: runDir2,
     task: cfg.name,
     mode: cfg.mode,
+    settings: cfg.board && cfg.board.show ? effectiveSettings(cfg) : null,
     n: cfg.n,
     closed_reason: closedReason,
     minutes: round(lastMinute, 1),
@@ -815,6 +877,7 @@ function renderReportMd(r) {
     L.push(`- **Winner: ${w.cand_id} by ${w.writer_id}** \xB7 confirmed ${fmtNum(w.confirmed_metric)} (replays ${w.replays.map(fmtNum).join(", ")}) \xB7 improvement ${pct(w.improvement)}${m.target != null ? ` \xB7 target ${w.reached_target ? "reached" : "not reached"}` : ""}`);
     L.push(`- Winner files: \`${w.path}\` (not applied to your workspace)`);
   } else L.push("- **Winner: none**");
+  if (r.settings) L.push(`- Settings: ${Object.entries(r.settings).map(([k, v2]) => `${k}=${v2}`).join(" \xB7 ")}`);
   L.push(`- Isolation: ${r.isolation}`, "");
   if (r.ranking) {
     L.push("## Judge ranking", "", "| writer | score | reason |", "|---|---|---|");
@@ -860,7 +923,7 @@ function renderReportMd(r) {
 
 // src/core/run.ts
 var pad = (n, w = 4) => String(n).padStart(w, "0");
-var AGENT_MODE_INSTRUCTIONS = 'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.';
+var agentModeInstructions = (verifierOn) => 'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. ' + (verifierOn ? "A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. " : 'Nobody checks lessons in this run: they appear on the board at once, labelled "not checked". Treat every lesson as an untested claim and say in yours how you checked it. ') + "When your result looks complete, do not return. Attack it: look for a better one, try to prove or disprove that it is the best possible, test teammates' lessons on your own work, and checkpoint each step. Returning early ends nothing; the host only starts another session for you. There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.";
 function safeBlobs(dir, globs) {
   try {
     return readBlobs(dir, matchFiles(dir, globs)).map((b) => b.data.toString("utf8"));
@@ -880,6 +943,7 @@ var Run = class {
     this.writerIds = file.writers;
     this.evalsLimit = this.cfg.budget.evals;
     this.agentMode = this.cfg.verify.kind === "agent";
+    this.verifierOn = this.agentMode && this.cfg.verifier.enabled;
     for (const id of this.writerIds) {
       this.writers.set(id, { id, best: null, hashes: /* @__PURE__ */ new Map(), candCount: 0, pending: /* @__PURE__ */ new Set(), sessions: /* @__PURE__ */ new Map(), current: -1, delivered: /* @__PURE__ */ new Set(), bestSeen: null, lessonTexts: /* @__PURE__ */ new Set(), stampMissing: /* @__PURE__ */ new Set() });
       this.queues.set(id, []);
@@ -919,6 +983,8 @@ var Run = class {
   slotWaiters = [];
   confirming = null;
   agentMode;
+  /** True when a verifier agent gates lessons (no evaluator, verifier enabled). */
+  verifierOn;
   bseqMax = 0;
   verifierSessions = /* @__PURE__ */ new Map();
   verifierCurrent = -1;
@@ -1163,8 +1229,15 @@ var Run = class {
       mode: this.cfg.mode,
       board_enabled: boardOn,
       verify_kind: this.cfg.verify.kind,
-      ...this.agentMode ? { how_this_run_works: AGENT_MODE_INSTRUCTIONS, criteria: this.cfg.criteria } : {},
-      mode_instructions: this.cfg.shared.enabled ? `Workspace mode: the directory at shared_dir is readable. It holds every evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' code there. It is read-only. The lesson tools are disabled.` : boardOn ? "" : "Independent mode: the lesson board is disabled. Work on your own; post_lesson and read_lessons return board_disabled.",
+      ...this.agentMode ? { how_this_run_works: agentModeInstructions(this.verifierOn), criteria: this.cfg.criteria } : {},
+      mode_instructions: [
+        this.cfg.shared.enabled ? `Shared visibility: the directory at shared_dir is readable. It holds every checkpoint or evaluated candidate of every writer under <writer_id>/<cand_id>/, and index.tsv lists writer, candidate, minute, status and metric. You may read teammates' work there. It is read-only.` : "",
+        !boardOn ? "The lesson board is off in this run: post_lesson and read_lessons return board_disabled." : [
+          this.cfg.push.policy === "none" ? "Lessons are not pushed in this run: nothing arrives with your results, so page through the board with read_lessons yourself." : this.cfg.push.policy === "all" ? "Every lesson is pushed in this run, checked or not: read the header of each one." : "",
+          !this.cfg.board.pull ? "read_lessons is off in this run: you only receive pushed lessons." : this.cfg.board.show === "verified" ? "The board shows verified lessons only." : ""
+        ].filter(Boolean).join(" ")
+      ].filter(Boolean).join(" "),
+      settings: effectiveSettings(this.cfg),
       goal: this.cfg.goal,
       work_dir: this.workDir(w.id),
       notes_path: path4.join(this.writerDir(w.id), "NOTES.md"),
@@ -1176,7 +1249,7 @@ var Run = class {
       own_best: w.best,
       budget: this.budgetView(),
       session: { index: a.session, evals_used: sv.evals_used, eval_quota: sv.eval_quota, exhausted },
-      lessons_unread: boardOn ? this.lessons.filter((l) => l.bseq != null && l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0
+      lessons_unread: boardOn && this.cfg.board.pull ? this.board().filter((l) => l.writer_id !== w.id && !w.delivered.has(l.lesson_id)).length : 0
     };
   }
   /** Context files are copied next to the writer's work dir at init, so every path a writer needs shares one prefix. */
@@ -1332,7 +1405,8 @@ var Run = class {
   }
   /** Lessons visible on the board, in board order. Under agent verification a lesson appears only after its verdict. */
   board() {
-    return this.lessons.filter((l) => l.bseq != null).sort((a, b) => a.bseq - b.bseq);
+    const onlyVerified = this.cfg.board.show === "verified";
+    return this.lessons.filter((l) => l.bseq != null && (!onlyVerified || (this.agentMode ? l.verdict === "verified" : l.evidence.verified_gain))).sort((a, b) => a.bseq - b.bseq);
   }
   // ---------- queue ----------
   async admit(candId) {
@@ -1539,7 +1613,8 @@ var Run = class {
     if (c.lessons >= this.cfg.lesson.max_per_candidate) return reject("too_many_for_candidate", `${c.cand_id} already has ${c.lessons} lesson(s); the limit is ${this.cfg.lesson.max_per_candidate}. Attach new findings to a newer candidate.`);
     const evidence = { status: c.status, metric: c.metric, reference: c.reference, gain: c.gain == null ? null : round(c.gain, 4), verified_gain: c.verified_gain };
     const policy = this.cfg.push.policy;
-    const pushed = !this.agentMode && (policy === "all" || policy === "verified" && c.verified_gain && c.lessons === 0);
+    const gated = this.verifierOn;
+    const pushed = !gated && (policy === "all" || !this.agentMode && policy === "verified" && c.verified_gain && c.lessons === 0);
     const seq = this.lessons.length + 1;
     const lesson = {
       lesson_id: "L" + pad(seq),
@@ -1548,24 +1623,25 @@ var Run = class {
       cand_id: c.cand_id,
       minute: round((this.clock.now() - this.startMs) / 6e4, 2),
       evidence,
-      header: this.agentMode ? verdictHeader(w.id, c.cand_id, "pending", "") : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
+      header: gated ? verdictHeader(w.id, c.cand_id, "pending", "") : this.agentMode ? verdictHeader(w.id, c.cand_id, "unchecked", "") : lessonHeader(w.id, c.cand_id, evidence, this.cfg.metric),
       text,
       pushed,
-      bseq: this.agentMode ? null : seq,
-      verdict: this.agentMode ? "pending" : null,
+      bseq: gated ? null : seq,
+      verdict: gated ? "pending" : this.agentMode ? "unchecked" : null,
       verdict_note: ""
     };
     appendLineSync(this.lessonsPath, lesson);
     this.lessonStore.set(lesson.lesson_id, lesson);
     this.emit("lesson_posted", { lesson_id: lesson.lesson_id, seq, writer_id: w.id, cand_id: c.cand_id, chars: text.length, pushed });
     for (const r of this.lessonWaiters.splice(0)) r();
-    if (this.agentMode) return { lesson_id: lesson.lesson_id, pushed: false, status: "pending_verification", header: lesson.header, hint: "The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working." };
+    if (gated) return { lesson_id: lesson.lesson_id, pushed: false, status: "pending_verification", header: lesson.header, hint: "The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working." };
     return { lesson_id: lesson.lesson_id, pushed, header: lesson.header };
   }
   readLessons(a) {
     const w = this.writer(a.writer_id);
     this.checkIdentity(w.id, a.agent_id);
     if (!this.cfg.board.enabled) return { error: "board_disabled", message: `The lesson board is disabled in ${this.cfg.mode} mode.` };
+    if (!this.cfg.board.pull) return { error: "pull_disabled", message: "read_lessons is off in this run. Lessons reach you only when they are pushed with a result." };
     if (this.cfg.read.require_own_correct && !w.best) return { error: "locked", message: "The board unlocks once you have your own correct candidate. Get one first." };
     const cursor = Number.isInteger(a.cursor) && a.cursor >= 0 ? a.cursor : 0;
     const limit = Math.min(20, Math.max(1, Number.isInteger(a.limit) ? a.limit : 10));
@@ -1588,7 +1664,7 @@ var Run = class {
     writeJson(f, { agent_id: agentId, agent_type: agentType ?? null, role: "verifier", run_id: this.id, run_dir: this.dir, start_ms: this.startMs, scratch_dir: path4.join(this.dir, "verifier"), context_files: this.cfg.context_files.map((x) => path4.resolve(this.file.project_dir, x)) });
   }
   verifierGuard(agentId) {
-    if (!this.agentMode) throw new HostError("no_verifier", "This run gates lessons with an evaluation command; there is no verifier agent.");
+    if (!this.verifierOn) throw new HostError("no_verifier", this.agentMode ? "The verifier is switched off in this run; lessons are not checked." : "This run gates lessons with an evaluation command; there is no verifier agent.");
     if (this.writerOfAgent(agentId)) throw new HostError("forbidden", "writers cannot verify lessons");
   }
   /** Hand the verifier the oldest lesson that still needs a verdict; waits when there is none. */
@@ -1868,7 +1944,9 @@ var Host = class {
     const mode = str(a, "mode", false) ?? "lessonshare";
     const n = num(a, "n") ?? 8;
     const task = loadTaskFile(this.projectDir, taskPath);
-    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides);
+    const settings = { ...this.projectSettings(), ...isObj(a.settings) ? a.settings : {} };
+    if (a.settings != null && !isObj(a.settings)) throw new ArgError("settings must be an object");
+    const cfg = buildConfig(this.projectDir, task, mode, n, budget, a.overrides, settings);
     const now = this.clock.now();
     const ts = new Date(now).toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
     const runId = `r-${ts}-${crypto2.randomBytes(2).toString("hex").slice(0, 3)}`;
@@ -1942,6 +2020,17 @@ ${o.log}
     run.log(`run created: mode=${mode} n=${n}`);
     return this.initResult(run, warnings, false);
   }
+  projectSettings() {
+    const f = path5.join(this.projectDir, ".lessonshare", "settings.json");
+    if (!fs5.existsSync(f)) return {};
+    try {
+      const s = JSON.parse(fs5.readFileSync(f, "utf8"));
+      if (!isObj(s)) throw new Error("not an object");
+      return s;
+    } catch (e) {
+      throw new HostError("invalid_settings", `.lessonshare/settings.json is not a valid JSON object: ${e.message}`);
+    }
+  }
   releaseOne(dir) {
     const f = path5.join(dir, "server.lock");
     try {
@@ -1957,6 +2046,8 @@ ${o.log}
       writers: run.writerIds,
       baseline: { status: run.baseline.status, metric: run.baseline.metric, noise: run.baseline.noise },
       verify_kind: run.cfg.verify.kind,
+      verifier: run.verifierOn,
+      settings: effectiveSettings(run.cfg),
       session_base: resumed ? run.maxSession() + 1 : 0,
       resumed,
       config: run.cfg,

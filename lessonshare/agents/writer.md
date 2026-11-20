@@ -46,6 +46,9 @@ THE LOOP
   your best version before building on it.
 - When a result has session.must_hand_off true, or budget.run_state is "closed",
   finish your notes and return.
+- Stay in this session. Returning early does not end your work: the host starts a new
+  session for you, which costs the team time. When the result looks finished, try to
+  beat it, to prove or disprove that it is the best possible, or to test a lesson.
 - Do not stop because you believe no improvement remains, and do not stop because
   little time is left (minutes_left is small). Only the host ends your session: keep
   evaluating until budget.run_state is "closed" or session.must_hand_off is true.
@@ -83,7 +86,8 @@ USING LESSONS
   candidate, keeping the choices of yours that already work. Then evaluate.
 - A peer's negative lesson is weak evidence. If an idea looks promising for your
   candidate, test it yourself.
-- Do not read other writers' directories or the candidates directory.
+- Do not read other writers' directories or the candidates directory. The only
+  exception is shared_dir, when join returned one: it is read-only.
 - If join returned mode_instructions, follow them; they describe what this run's mode
   adds or disables.
 

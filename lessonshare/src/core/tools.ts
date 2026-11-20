@@ -22,6 +22,7 @@ export const TOOLS: ToolDef[] = [
         mode: { type: 'string', enum: ['independent', 'lessonshare', 'lessonshare-pull', 'workspace'] },
         n: { type: 'integer', description: 'Number of writers. Default 8.' },
         budget: { type: 'object', properties: { minutes: { type: ['number', 'null'] }, evals: { type: ['integer', 'null'] } } },
+        settings: { type: 'object', description: 'Team switches: visibility (isolated|shared), push (verified|all|none), verifier (bool), board (all|verified|off), pull (bool), lesson_chars, lesson_lines, copy_chars, lessons_per_checkpoint, push_batch, session_checkpoints, read_after_own_result. Project defaults come from .lessonshare/settings.json.' },
         overrides: { type: 'object', description: 'Partial overrides of configuration keys.' },
         resume_run_id: { type: ['string', 'null'], description: 'Reopen this run for budget.minutes more minutes instead of creating one.' },
       },

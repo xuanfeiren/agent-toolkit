@@ -10,7 +10,7 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && vitest run",
+    "test": "npm run build && vitest run test/",
     "test:unit": "vitest run test/unit"
   },
   "devDependencies": {
