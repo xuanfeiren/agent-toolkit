@@ -46,6 +46,7 @@ export interface Config {
     api_patterns: string[]
     max_per_candidate: number
     max_copy_chars: number
+    keep_rejected: boolean
   }
   push: { policy: 'verified' | 'all' | 'none'; max_per_delivery: number }
   read: { require_own_correct: boolean }
@@ -82,13 +83,14 @@ export const DEFAULTS = {
       '^\\s*from\\s+\\S+\\s+import\\b',
       '^\\s*#include\\b',
       '^\\s*(for|while|if)\\s*\\(',
-      '[{};]\\s*$',
+      '[{;]\\s*$',
       '\\):\\s*$',
     ],
     def_patterns: ['\\b(def|fn|func|function)\\s+[A-Za-z_]\\w*\\s*\\('],
     api_patterns: [],
     max_per_candidate: 2,
     max_copy_chars: 40,
+    keep_rejected: false,
   },
   push: { policy: 'verified', max_per_delivery: 5 },
   read: { require_own_correct: false },
@@ -142,6 +144,8 @@ export const SETTINGS: Record<string, { values: string; doc: string; to: (v: any
   push_batch: { values: 'integer', doc: 'At most this many lessons are delivered with one result (default 5).', to: (v) => (posInt(v, 'push_batch'), { push: { max_per_delivery: v } }) },
   session_checkpoints: { values: 'integer', doc: 'Evaluations or checkpoints per writer session before it hands off to a fresh session (default 25 with an evaluator, 200 without).', to: (v) => (posInt(v, 'session_checkpoints'), { session: { eval_quota: v } }) },
   keep_working: { values: 'integer', doc: 'How many times a writer that tries to return while the run is open is sent back to work (default 8; 0 lets writers end sessions freely).', to: (v) => (nonNegInt(v, 'keep_working'), { session: { keep_working: v } }) },
+  verified_only: { values: 'true', doc: 'One switch for the strict policy: only verified lessons are pushed and only verified lessons are readable on the board. Same as push "verified" with board "verified".', to: (v) => (v === true ? { push: { policy: 'verified' }, board: { enabled: true, show: 'verified' } } : bool(v, 'verified_only') ?? {}) },
+  keep_rejected: { values: 'true | false', doc: 'true: the text of every lesson the host rejects is kept in rejected.jsonl in the run directory, for auditing the filter (default false: a rejected text may contain the author\'s result).', to: (v) => (bool(v, 'keep_rejected'), { lesson: { keep_rejected: v } }) },
   read_after_own_result: { values: 'true | false', doc: 'true: the board unlocks for a writer only after it has a correct result of its own (evaluator runs).', to: (v) => (bool(v, 'read_after_own_result'), { read: { require_own_correct: v } }) },
 }
 function oneOf(v: unknown, vals: string[], k: string) {
@@ -182,6 +186,7 @@ export function effectiveSettings(cfg: Config) {
     push_batch: cfg.push.max_per_delivery,
     session_checkpoints: cfg.session.eval_quota,
     keep_working: cfg.session.keep_working,
+    keep_rejected: cfg.lesson.keep_rejected,
   }
 }
 
@@ -268,6 +273,8 @@ export function validateConfig(projectDir: string, cfg: any): void {
   if (agentMode && !cfg.verifier.enabled && cfg.board.enabled && cfg.board.show === 'verified') throw new HostError('invalid_task', 'With the verifier off no lesson is ever verified, so board "verified" would stay empty. Set board to "all" or "off", or keep the verifier on.')
   need(isPosInt(cfg.push.max_per_delivery), 'push.max_per_delivery must be a positive integer')
   need(typeof cfg.read.require_own_correct === 'boolean', 'read.require_own_correct must be boolean')
+  need(typeof cfg.lesson.keep_rejected === 'boolean', 'lesson.keep_rejected must be boolean')
+  if (agentMode && cfg.read.require_own_correct) throw new HostError('invalid_task', 'read_after_own_result needs an evaluator: without one no result is ever marked correct, so the board would stay locked for the whole run. Leave it off. Pushes already wait for a writer\'s first checkpoint in runs without an evaluator.')
   need(isPosInt(cfg.session.eval_quota), 'session.eval_quota must be a positive integer')
   need(Number.isInteger(cfg.session.grace) && cfg.session.grace >= 0, 'session.grace must be a non-negative integer')
   need(Number.isInteger(cfg.session.keep_working) && cfg.session.keep_working >= 0, 'session.keep_working must be a non-negative integer')

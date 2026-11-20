@@ -142,7 +142,7 @@ describe('scripted fake writers against the real board.js over MCP', () => {
     }
     // report carries all diagnostics of section 13.3
     const md = fs.readFileSync(path.join(run.run_dir, 'report.md'), 'utf8')
-    for (const s of ['Lesson verified rate', 'Catch-up time', 'Characters read per writer', 'Share of reads before own correct', 'Implementation families', 'Evaluation queue share', 'Evaluations per session']) expect(md).toContain(s)
+    for (const s of ['Lessons pushed / posted', 'Catch-up time', 'Characters read per writer', 'Share of reads before own correct', 'Lexical families', 'Evaluation queue share', 'Evaluations per session']) expect(md).toContain(s)
     expect(rep.diagnostics.behavior.lesson_after_verified_gain_rate).toBe(1)
     expect(rep.diagnostics.evals_per_session.sessions).toBeGreaterThan(4) // hand-offs happened
   }, 120000)
@@ -225,11 +225,12 @@ describe('hook-guard.js', () => {
     expect(d('Write', { file_path: path.join(runDir, 'shared', 'index.tsv') }, { agent_id: 'ag2' })).toBe('deny')
   })
   it('records denials in the event log and explains the allowed scope', () => {
+    const hosts = fs.realpathSync('/etc/hosts') // /private/etc/hosts on macOS: the guard records the resolved path
     const r = guard('Read', { file_path: '/etc/hosts' })
     expect(r.out.permissionDecisionReason).toContain(own)
     const evs = readJsonl(path.join(runDir, 'events.jsonl')).filter((e) => e.type === 'guard_denied')
     expect(evs.length).toBeGreaterThan(5)
-    expect(evs[evs.length - 1]).toMatchObject({ agent_id: 'ag1', writer_id: 'w01', tool: 'Read', path: '/etc/hosts' })
+    expect(evs[evs.length - 1]).toMatchObject({ agent_id: 'ag1', writer_id: 'w01', tool: 'Read', path: hosts })
   })
   it('verifier role: reads the whole run, writes only its scratch directory', () => {
     fs.mkdirSync(path.join(runDir, 'verifier'), { recursive: true })

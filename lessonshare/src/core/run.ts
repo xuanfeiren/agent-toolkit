@@ -3,8 +3,8 @@ import * as path from 'node:path'
 import { effectiveSettings } from './config'
 import type { Config } from './config'
 import { type EvalFn, type EvalOutcome, type EvalStatus, interpretPrecheck } from './evalcmd'
-import { COPY_MESSAGE, type Evidence, REJECT_MESSAGE, type Verdict, copiesFromWork, lessonHeader, validateLessonText, verdictHeader } from './lesson'
-import { ArgError, type Clock, Deferred, HostError, appendLineSync, copyDir, hashBlobs, hashDir, matchFiles, median, readBlobs, readJson, readJsonl, round, writeBlobs, writeJson } from './util'
+import { COPY_MESSAGE, type Evidence, type Verdict, copiedSpan, explainReject, lessonHeader, validateLessonText, verdictHeader } from './lesson'
+import { ArgError, type Clock, Deferred, HostError, appendLineSync, copyDir, hashBlobs, hashDir, matchFiles, median, readBlobs, readJson, readJsonl, repairJsonl, round, writeBlobs, writeJson } from './util'
 import { buildReport, renderReportMd } from './report'
 
 export interface Baseline {
@@ -74,18 +74,24 @@ export interface Lesson {
   /** Agent verification only; null when an evaluation command gates lessons. */
   verdict: Verdict | null
   verdict_note: string
+  /** The lesson this one corrects or retracts (its author's own, or a teammate's it received). */
+  corrects?: string | null
+  /** Run minute at which the lesson became eligible for delivery. Kept in memory only. */
+  pushed_minute?: number | null
 }
 
 const pad = (n: number, w = 4) => String(n).padStart(w, '0')
 
 const agentModeInstructions = (verifierOn: boolean) =>
-  'This run has no automatic evaluator. Your result is whatever you leave in work_dir when the run closes; a judge then ranks every writer against the goal and criteria. ' +
-  'evaluate records a checkpoint of work_dir (status "recorded", no metric): call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. ' +
+  'This run has no automatic evaluator. Your result is your LAST CHECKPOINT when the run closes: edits to work_dir that you did not checkpoint are not part of it. A judge then ranks every writer against the goal and criteria. ' +
+  'evaluate saves a checkpoint of work_dir (status "recorded", no metric). It executes nothing and tests nothing: a checkpoint is a saved version, not a passed check. Call it whenever your result has moved forward. Checkpoints count toward the session quota, anchor your lessons, and carry lessons pushed by teammates back to you. ' +
   (verifierOn
-    ? 'A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. '
+    ? 'A verifier agent checks every lesson against your checkpoint before anyone else sees it: verified lessons are pushed to the team, and so are partly verified ones, with the verifier\'s correction in the header; unverified or refuted ones appear on the board with that label; a lesson that hands over your result instead of an insight is withheld. '
     : 'Nobody checks lessons in this run: they appear on the board at once, labelled "not checked". Treat every lesson as an untested claim and say in yours how you checked it. ') +
   'When your result looks complete, do not return. Attack it: look for a better one, try to prove or disprove that it is the best possible, test teammates\' lessons on your own work, and checkpoint each step. Returning early ends nothing; the host only starts another session for you. ' +
-  'There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it.'
+  'There is no verified_gain signal: post a lesson when you establish something a teammate could reuse, and say how you checked it. ' +
+  'If a lesson of yours, or one you received, turns out to be wrong, post the correction with corrects set to that lesson id: it goes first to everyone who got the original. ' +
+  'When a checkpoint builds on a teammate\'s lesson, name it in used_lessons on that evaluate call.'
 
 function safeBlobs(dir: string, globs: string[]): string[] {
   try {
@@ -108,6 +114,11 @@ export class Run {
   counted = 0
   teamBest: { cand_id: string; writer_id: string; metric: number } | null = null
   confirmed = false
+  /** Result round: 0 for the first search, +1 each time the run is reopened. Finals and reports are kept per round. */
+  generation = 0
+  private damage = { events_torn_bytes: 0, events_bad_lines: 0, lessons_torn_bytes: 0, lessons_bad_lines: 0 }
+  private uses = new Set<string>()
+  private correctedBy = new Map<string, string[]>()
   writers = new Map<string, WriterState>()
   cands = new Map<string, Cand>()
   lessons: Lesson[] = []
@@ -202,6 +213,7 @@ export class Run {
         this.state = 'open'
         this.closedReason = null
         this.confirmed = false
+        this.generation++
         this.deadlineMs = tMs + ev.minutes_added * 60000
         if (ev.evals_added && this.evalsLimit != null) this.evalsLimit += ev.evals_added
         break
@@ -251,6 +263,8 @@ export class Run {
         const l = this.lessonStore.get(ev.lesson_id)
         if (!l) break
         this.lessons.push(l)
+        if (l.pushed) l.pushed_minute = ev.minute
+        if (l.bseq != null) this.noteCorrection(l)
         if (l.bseq != null && l.bseq > this.bseqMax) this.bseqMax = l.bseq
         this.writers.get(l.writer_id)!.lessonTexts.add(l.text)
         const c = this.cands.get(l.cand_id)
@@ -281,17 +295,35 @@ export class Run {
         l.verdict_note = ev.note ?? ''
         l.header = ev.header
         l.pushed = !!ev.pushed
+        l.pushed_minute = l.pushed ? ev.minute : null
         l.bseq = ev.bseq ?? null
+        if (ev.verdict === 'verified' || ev.verdict === 'partly_verified') this.noteCorrection(l)
         if (l.bseq != null && l.bseq > this.bseqMax) this.bseqMax = l.bseq
         this.assigned.delete(l.lesson_id)
         const vs = this.verifierSessions.get(ev.session)
         if (vs) vs.verdicts++
         break
       }
+      case 'lessons_used':
+        for (const id of ev.lesson_ids ?? []) this.uses.add(`${ev.writer_id}/${id}`)
+        break
       case 'run_confirmed':
         this.confirmed = true
         break
     }
+  }
+  /** A correction that is visible and not itself in doubt marks the lesson it corrects. */
+  private noteCorrection(l: Lesson) {
+    if (!l.corrects) return
+    const list = this.correctedBy.get(l.corrects) ?? []
+    if (!list.includes(l.lesson_id)) list.push(l.lesson_id)
+    this.correctedBy.set(l.corrects, list)
+  }
+  /** The header a reader sees: the host's record plus what later lessons say about this one. */
+  private headerOf(l: Lesson): string {
+    const by = this.correctedBy.get(l.lesson_id)
+    const parts = [l.corrects ? `corrects ${l.corrects}` : '', by?.length ? `CORRECTED BY ${by.join(', ')}: read that lesson before using this one` : ''].filter(Boolean)
+    return parts.length ? l.header.replace(/\]$/, '') + ' · ' + parts.join(' · ') + ']' : l.header
   }
   private sessionOf(w: WriterState, idx: number): SessionState {
     let s = w.sessions.get(idx)
@@ -308,6 +340,12 @@ export class Run {
 
   /** Rebuild all in-memory state from disk and re-enqueue evaluations that never produced a result. */
   recover(): void {
+    // The caller holds the run lock. A record torn by a crash is set aside before anything is appended, so
+    // every event written from now on can be read back on the next recovery.
+    const ev = repairJsonl(this.eventsPath)
+    const ls = repairJsonl(this.lessonsPath)
+    this.damage = { events_torn_bytes: ev.torn_bytes, events_bad_lines: ev.bad_lines, lessons_torn_bytes: ls.torn_bytes, lessons_bad_lines: ls.bad_lines }
+    if (ev.torn_bytes || ls.torn_bytes || ev.bad_lines || ls.bad_lines) this.log(`log damage on load: ${JSON.stringify(this.damage)}`)
     for (const l of readJsonl<Lesson>(this.lessonsPath)) this.lessonStore.set(l.lesson_id, l)
     for (const ev of readJsonl(this.eventsPath)) this.apply(ev)
     const pending = [...this.cands.values()].filter((c) => c.status === 'pending').sort((a, b) => a.cand_id.localeCompare(b.cand_id))
@@ -317,6 +355,7 @@ export class Run {
       this.queues.get(c.writer_id)!.push(c.cand_id)
     }
     if (pending.length) this.log(`recovered ${pending.length} unfinished evaluation(s)`)
+    if (ev.torn_bytes || ls.torn_bytes) this.emit('log_repaired', { ...this.damage })
     this.tick()
     this.pump()
   }
@@ -362,7 +401,27 @@ export class Run {
     this.emit('run_init', { run_id: this.id, config: this.cfg, baseline: this.baseline })
   }
   reopen(minutes: number, evals: number | null): void {
-    this.emit('run_reopened', { minutes_added: minutes, evals_added: evals ?? 0 })
+    // The report of the round that ends here stays readable under its own name.
+    for (const ext of ['json', 'md']) {
+      const cur = path.join(this.dir, `report.${ext}`)
+      try {
+        if (fs.existsSync(cur)) fs.renameSync(cur, path.join(this.dir, `report-g${this.generation}.${ext}`))
+      } catch (e) {
+        this.log('could not archive report: ' + (e as Error).message)
+      }
+    }
+    this.emit('run_reopened', { minutes_added: minutes, evals_added: evals ?? 0, generation: this.generation + 1 })
+  }
+  minutesLeft(): number {
+    return this.budgetView().minutes_left
+  }
+  /** Human-readable account of log damage found when this run was loaded; empty when the logs were clean. */
+  logDamage(): string[] {
+    const d = this.damage
+    const out: string[] = []
+    if (d.events_torn_bytes || d.lessons_torn_bytes) out.push(`A record cut off by a crash was set aside (${d.events_torn_bytes} bytes of events.jsonl, ${d.lessons_torn_bytes} of lessons.jsonl; kept in the .corrupt file next to each log). The action it recorded is lost; everything before it is intact.`)
+    if (d.events_bad_lines || d.lessons_bad_lines) out.push(`Unreadable lines inside the logs were skipped (${d.events_bad_lines} in events.jsonl, ${d.lessons_bad_lines} in lessons.jsonl). State rebuilt from these logs may be incomplete: check server.log.`)
+    return out
   }
   maxSession(): number {
     let m = -1
@@ -454,7 +513,7 @@ export class Run {
   }
 
   // ---------- evaluate ----------
-  async evaluate(a: { writer_id: string; note?: string; agent_id?: string | null }) {
+  async evaluate(a: { writer_id: string; note?: string; used_lessons?: unknown; agent_id?: string | null }) {
     const w = this.writer(a.writer_id)
     this.checkIdentity(w.id, a.agent_id)
     this.tick()
@@ -497,13 +556,28 @@ export class Run {
     this.submitMs.set(candId, this.clock.now())
     this.waiters.set(candId, new Deferred())
     this.emit('eval_submitted', { cand_id: candId, writer_id: w.id, session: w.current, hash, note, bytes })
+    const usedNote = this.recordUses(w, candId, a.used_lessons)
     if (this.agentMode) {
       // No evaluation command: the snapshot is a checkpoint. It anchors lessons and carries pushed lessons back.
       this.finish(this.cands.get(candId)!, { status: 'recorded', metric: null, detail: 'Checkpoint recorded. There is no automatic evaluator in this run.', eval_s: 0, log: '' }, 0, hash)
-      return this.resultView(this.cands.get(candId)!, w, true)
+      return { ...this.resultView(this.cands.get(candId)!, w, true), ...usedNote }
     }
     void this.admit(candId)
-    return this.await(candId, w, this.cfg.eval.block_s)
+    return { ...(await this.await(candId, w, this.cfg.eval.block_s)), ...usedNote }
+  }
+  /** A writer's own statement of which teammates' lessons a candidate builds on. Self-declared, tied to the candidate. */
+  private recordUses(w: WriterState, candId: string, raw: unknown): Record<string, unknown> {
+    if (raw == null) return {}
+    const ids = Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
+    const ok: string[] = []
+    const unknown: string[] = []
+    for (const id of new Set(ids)) {
+      const l = this.lessonStore.get(id)
+      if (l && l.writer_id !== w.id && (w.delivered.has(id) || l.bseq != null)) ok.push(id)
+      else unknown.push(id)
+    }
+    if (ok.length) this.emit('lessons_used', { writer_id: w.id, cand_id: candId, lesson_ids: ok })
+    return unknown.length ? { used_lessons_ignored: unknown, used_lessons_hint: "used_lessons takes ids of teammates' lessons you received or read, e.g. L0007." } : {}
   }
 
   async getResult(a: { writer_id: string; cand_id: string; wait_s?: number; agent_id?: string | null }) {
@@ -566,6 +640,8 @@ export class Run {
       budget: this.budgetView(),
       session: this.sessionView(w),
     }
+    // A checkpoint is a saved version. Say so in the result, so nobody reads "recorded" as "passed".
+    if (c.status === 'recorded') Object.assign(out, { execution_performed: false, evidence: 'checkpoint saved by the host; nothing was executed or tested' })
     if (this.cfg.board.enabled) out.pushed_lessons = deliver ? this.deliver(w, c.cand_id) : []
     const sv = this.sessionView(w)
     const hints: string[] = []
@@ -579,21 +655,32 @@ export class Run {
   }
 
   /** Piggy-back pushed lessons from other writers on a finished evaluation result (section 6.6). */
-  private deliver(w: WriterState, candId: string) {
-    const out: Array<{ lesson_id: string; header: string; text: string }> = []
-    for (const l of this.board()) {
+  private deliver(w: WriterState, via: string) {
+    const out: Array<Record<string, unknown>> = []
+    // Corrections of lessons this writer already holds go first: a correction must not wait behind a backlog.
+    const due = this.board().filter((l) => l.pushed && l.writer_id !== w.id && !w.delivered.has(l.lesson_id))
+    const urgent = (l: Lesson) => (l.corrects && w.delivered.has(l.corrects) ? 0 : 1)
+    due.sort((a, b) => urgent(a) - urgent(b) || a.bseq! - b.bseq!)
+    for (const l of due) {
       if (out.length >= this.cfg.push.max_per_delivery) break
-      if (!l.pushed || l.writer_id === w.id || w.delivered.has(l.lesson_id)) continue
-      this.emit('lesson_delivered', { lesson_id: l.lesson_id, to: w.id, with_cand: candId, chars: l.text.length })
-      out.push({ lesson_id: l.lesson_id, header: l.header, text: l.text })
+      this.emit('lesson_delivered', { lesson_id: l.lesson_id, to: w.id, with_cand: via, chars: l.text.length, waited_min: l.pushed_minute == null ? null : round(Math.max(0, (this.clock.now() - this.startMs) / 60000 - l.pushed_minute), 2) })
+      out.push({ lesson_id: l.lesson_id, header: this.headerOf(l), text: l.text, ...(l.corrects ? { corrects: l.corrects } : {}) })
     }
     return out
+  }
+  /** Pushed lessons that have not reached this writer yet, and how long the oldest has waited. */
+  private waitingFor(w: WriterState) {
+    const due = this.lessons.filter((l) => l.pushed && l.bseq != null && l.writer_id !== w.id && !w.delivered.has(l.lesson_id))
+    const nowMin = (this.clock.now() - this.startMs) / 60000
+    const oldest = due.reduce((m, l) => Math.max(m, l.pushed_minute == null ? 0 : nowMin - l.pushed_minute), 0)
+    return { count: due.length, oldest_wait_min: due.length ? round(Math.max(0, oldest), 1) : 0 }
   }
 
   /** Lessons visible on the board, in board order. Under agent verification a lesson appears only after its verdict. */
   private board(): Lesson[] {
     const onlyVerified = this.cfg.board.show === 'verified'
-    return this.lessons.filter((l) => l.bseq != null && (!onlyVerified || (this.agentMode ? l.verdict === 'verified' : l.evidence.verified_gain))).sort((a, b) => a.bseq! - b.bseq!)
+    const isVerified = (l: Lesson) => (this.agentMode ? l.verdict === 'verified' || l.verdict === 'partly_verified' : l.evidence.verified_gain)
+    return this.lessons.filter((l) => l.bseq != null && (!onlyVerified || isVerified(l))).sort((a, b) => a.bseq! - b.bseq!)
   }
 
   // ---------- queue ----------
@@ -685,37 +772,78 @@ export class Run {
     this.finish(c, o, queueWait, evaluatedHash)
   }
 
+  /** Final snapshot id of a writer in the current result round. Round 0 keeps the historical name. */
+  finalId(writerId: string, generation = this.generation): string {
+    return generation ? `final-${writerId}-g${generation}` : `final-${writerId}`
+  }
   /**
-   * Without an evaluation command there is nothing to replay. The run is closed, every writer's work directory is
-   * frozen as a final snapshot, and a judge agent ranks the finals against the task criteria.
+   * Freeze one writer's result for this round: its last checkpoint (work saved before the run closed), or the work
+   * directory when it never saved one. Written to a temporary directory and renamed, so a final either exists
+   * complete, with its manifest, or not at all. A final that exists is never rewritten.
+   */
+  private freezeFinal(id: string) {
+    const fid = this.finalId(id)
+    const dir = this.candDir(fid)
+    const manifestPath = path.join(dir, 'final.json')
+    if (!fs.existsSync(manifestPath)) {
+      const last = [...this.cands.values()].filter((c) => c.writer_id === id && c.status === 'recorded').sort((a, b) => a.cand_id.localeCompare(b.cand_id)).pop()
+      const srcDir = last ? path.join(this.candDir(last.cand_id), 'src') : this.workDir(id)
+      let blobs = last ? readBlobs(srcDir, matchFiles(srcDir, ['**'])) : readBlobs(srcDir, matchFiles(srcDir, this.cfg.candidate.files!))
+      if (blobs.reduce((n, b) => n + b.data.length, 0) > this.cfg.candidate.max_bytes) blobs = []
+      const manifest = { writer_id: id, cand_id: fid, generation: this.generation, source: last ? last.cand_id : 'work_dir', hash: hashBlobs(blobs), files: blobs.map((b) => b.rel) }
+      // Round 0 of a run made by an older version may already hold src/ without a manifest: adopt it as it is.
+      if (this.generation === 0 && fs.existsSync(path.join(dir, 'src'))) {
+        const legacy = readBlobs(path.join(dir, 'src'), matchFiles(path.join(dir, 'src'), ['**']))
+        writeJson(manifestPath, { ...manifest, source: 'legacy', hash: hashBlobs(legacy), files: legacy.map((b) => b.rel) })
+      } else {
+        const tmp = `${dir}.tmp${process.pid}`
+        fs.rmSync(tmp, { recursive: true, force: true })
+        fs.rmSync(dir, { recursive: true, force: true }) // a directory without a manifest is a torn write
+        writeBlobs(path.join(tmp, 'src'), blobs)
+        writeJson(path.join(tmp, 'final.json'), manifest)
+        fs.renameSync(tmp, dir)
+      }
+      const m = readJson<any>(manifestPath)
+      this.emit('final_snapshot', { writer_id: id, cand_id: fid, generation: this.generation, source: m.source, hash: m.hash, files: m.files.length })
+    }
+    const m = readJson<any>(manifestPath)
+    return { writer_id: id, cand_id: fid, final_dir: path.join(dir, 'src'), files: m.files as string[], hash: m.hash as string, source: m.source as string, notes_path: path.join(this.writerDir(id), 'NOTES.md') }
+  }
+
+  /**
+   * Without an evaluation command there is nothing to replay. The run is closed, every writer's last checkpoint is
+   * frozen as the final of this round, and a judge agent ranks the finals against the task criteria. The host
+   * checks the ranking itself: one row per writer, scores in range, a reason for each.
    */
   private async confirmJudged(ranking: unknown, reportPath: string) {
     this.close('confirm')
     await this.idle()
-    const finals = this.writerIds.map((id) => {
-      const dst = path.join(this.candDir('final-' + id), 'src')
-      if (!fs.existsSync(dst)) {
-        const rels = matchFiles(this.workDir(id), this.cfg.candidate.files!)
-        let blobs = readBlobs(this.workDir(id), rels)
-        if (blobs.reduce((n, b) => n + b.data.length, 0) > this.cfg.candidate.max_bytes) blobs = []
-        writeBlobs(dst, blobs)
-        this.emit('final_snapshot', { writer_id: id, cand_id: 'final-' + id, files: blobs.length })
-      }
-      return { writer_id: id, final_dir: dst, files: matchFiles(dst, ['**']), notes_path: path.join(this.writerDir(id), 'NOTES.md') }
-    })
-    if (ranking == null) return { needs_ranking: true, run_id: this.id, goal: this.cfg.goal, criteria: this.cfg.criteria, finals, instructions: 'Read every final_dir. Judge each result against the goal and criteria: check it yourself, do not trust claims. Then call confirm again with ranking: [{writer_id, score (0-10), reason (one sentence)}] for every writer, best first.' }
-    if (!Array.isArray(ranking) || !ranking.length) throw new ArgError('ranking must be a non-empty array of {writer_id, score, reason}')
+    const finals = this.writerIds.map((id) => this.freezeFinal(id))
+    if (ranking == null) return { needs_ranking: true, run_id: this.id, generation: this.generation, goal: this.cfg.goal, criteria: this.cfg.criteria, finals, instructions: 'Read every final_dir. Judge each result against the goal and criteria: check it yourself, do not trust claims. Then call confirm again with ranking: one row for EVERY writer, [{writer_id, score (0 to 10), meets_bar (true only if the result is valid and good enough to rely on), reason (one sentence)}]. If no result meets the bar, say so with meets_bar false on every row: the report then names no winner.' }
+    if (!Array.isArray(ranking) || !ranking.length) throw new ArgError('ranking must be a non-empty array of {writer_id, score, meets_bar, reason}')
+    const seen = new Set<string>()
     const clean = ranking.map((r: any) => {
       if (!r || !this.writers.has(r.writer_id)) throw new ArgError(`ranking: unknown writer_id ${JSON.stringify(r?.writer_id)}`)
+      if (seen.has(r.writer_id)) throw new ArgError(`ranking: ${r.writer_id} appears more than once`)
+      seen.add(r.writer_id)
       if (typeof r.score !== 'number' || !Number.isFinite(r.score)) throw new ArgError('ranking: score must be a number')
-      return { writer_id: r.writer_id as string, score: r.score as number, reason: String(r.reason ?? '').replace(/\s+/g, ' ').slice(0, 400) }
+      if (r.score < 0 || r.score > 10) throw new ArgError(`ranking: the score of ${r.writer_id} is ${r.score}; scores go from 0 to 10`)
+      const reason = String(r.reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 400)
+      if (!reason) throw new ArgError(`ranking: ${r.writer_id} has no reason; give one sentence`)
+      if (r.meets_bar != null && typeof r.meets_bar !== 'boolean') throw new ArgError('ranking: meets_bar must be true or false')
+      const f = finals.find((x) => x.writer_id === r.writer_id)!
+      const meets = r.meets_bar !== false
+      if (meets && !f.files.length) throw new ArgError(`ranking: ${r.writer_id} has no result files, so it cannot meet the bar; set meets_bar to false`)
+      return { writer_id: r.writer_id as string, score: r.score as number, meets_bar: meets, reason, final: f.cand_id, hash: f.hash }
     })
+    const missing = this.writerIds.filter((id) => !seen.has(id))
+    if (missing.length) throw new ArgError(`ranking: no row for ${missing.join(', ')}; rank every writer of the run (${this.writerIds.join(', ')})`)
     clean.sort((x, y) => y.score - x.score)
-    const top = clean[0]
+    const top = clean.find((x) => x.meets_bar) ?? null
     const winnerDir = path.join(this.dir, 'winner')
     fs.rmSync(winnerDir, { recursive: true, force: true })
-    copyDir(path.join(this.candDir('final-' + top.writer_id), 'src'), winnerDir)
-    this.emit('run_confirmed', { winner: 'final-' + top.writer_id, winner_writer: top.writer_id, judged: true, ranking: clean })
+    if (top) copyDir(path.join(this.candDir(top.final), 'src'), winnerDir)
+    this.emit('run_confirmed', { winner: top ? top.final : null, winner_writer: top ? top.writer_id : null, winner_hash: top ? top.hash : null, no_validated_winner: !top, judged: true, generation: this.generation, ranking: clean })
     const report = buildReport(this.dir)
     writeJson(reportPath, report)
     fs.writeFileSync(path.join(this.dir, 'report.md'), renderReportMd(report))
@@ -778,15 +906,23 @@ export class Run {
   }
 
   // ---------- lessons ----------
-  postLesson(a: { writer_id: string; cand_id: string; text: string; agent_id?: string | null }) {
+  postLesson(a: { writer_id: string; cand_id: string; text: string; corrects?: string | null; agent_id?: string | null }) {
     const w = this.writer(a.writer_id)
     this.checkIdentity(w.id, a.agent_id)
     if (typeof a.text !== 'string') throw new ArgError('text is required')
     if (typeof a.cand_id !== 'string') throw new ArgError('cand_id is required')
     const text = a.text.trim()
-    const reject = (error: string, message: string) => {
-      this.emit('lesson_rejected', { writer_id: w.id, cand_id: a.cand_id, error, chars: text.length })
-      return { error, message }
+    const reject = (error: string, message: string, detail: Record<string, unknown> = {}) => {
+      this.emit('lesson_rejected', { writer_id: w.id, cand_id: a.cand_id, error, chars: text.length, ...detail })
+      // Off by default: a rejected text may be the author's result. Turn it on to audit the filter.
+      if (this.cfg.lesson.keep_rejected) {
+        try {
+          appendLineSync(path.join(this.dir, 'rejected.jsonl'), { t: new Date(this.clock.now()).toISOString(), writer_id: w.id, cand_id: a.cand_id, error, ...detail, text }, false)
+        } catch {
+          /* audit copy is best effort */
+        }
+      }
+      return { error, message, ...detail }
     }
     this.tick()
     if (this.state === 'closed') return reject('run_closed', 'The run is closed; lessons are no longer accepted.')
@@ -795,11 +931,22 @@ export class Run {
     if (!c || c.writer_id !== w.id || c.status === 'pending') return reject('unknown_candidate', `${a.cand_id} is not one of your evaluated candidates. Attach the lesson to a candidate of yours whose evaluation has finished.`)
     if (!text) return reject('empty', 'The lesson text is empty.')
     const bad = validateLessonText(text, this.cfg.lesson)
-    if (bad) return reject(bad, REJECT_MESSAGE)
+    if (bad) {
+      const why = explainReject(bad, text, this.cfg.lesson)
+      return reject(bad, why.message, { rule: why.rule, ...(why.lines.length ? { lines: why.lines } : {}) })
+    }
     if (this.cfg.lesson.max_copy_chars > 0) {
       const texts: string[] = []
       for (const d of [path.join(this.candDir(c.cand_id), 'src'), this.workDir(w.id)]) for (const b of safeBlobs(d, this.cfg.candidate.files!)) texts.push(b)
-      if (copiesFromWork(text, texts, this.cfg.lesson.max_copy_chars)) return reject('contains_solution', COPY_MESSAGE)
+      const span = copiedSpan(text, texts, this.cfg.lesson.max_copy_chars)
+      if (span) return reject('contains_solution', `${COPY_MESSAGE} The passage starting "${span.excerpt}" (about character ${span.at + 1} of your lesson) repeats ${this.cfg.lesson.max_copy_chars} or more consecutive characters of your own files. Rephrase that passage; the rest can stay.`, { rule: `copy_chars=${this.cfg.lesson.max_copy_chars}`, at: span.at })
+    }
+    let corrects: string | null = null
+    if (a.corrects != null && a.corrects !== '') {
+      const t = typeof a.corrects === 'string' ? this.lessonStore.get(a.corrects) : undefined
+      const mayRef = t && this.lessons.includes(t) && (t.writer_id === w.id || w.delivered.has(t.lesson_id) || (t.bseq != null && this.board().includes(t)))
+      if (!mayRef) return reject('unknown_lesson', `corrects must name a lesson of your own or one you received; ${JSON.stringify(a.corrects)} is neither.`)
+      corrects = t!.lesson_id
     }
     if (w.lessonTexts.has(text)) return reject('duplicate', 'You already posted this exact lesson.')
     if (c.lessons >= this.cfg.lesson.max_per_candidate) return reject('too_many_for_candidate', `${c.cand_id} already has ${c.lessons} lesson(s); the limit is ${this.cfg.lesson.max_per_candidate}. Attach new findings to a newer candidate.`)
@@ -823,10 +970,11 @@ export class Run {
       bseq: gated ? null : seq,
       verdict: gated ? 'pending' : this.agentMode ? 'unchecked' : null,
       verdict_note: '',
+      ...(corrects ? { corrects } : {}),
     }
     appendLineSync(this.lessonsPath, lesson)
     this.lessonStore.set(lesson.lesson_id, lesson)
-    this.emit('lesson_posted', { lesson_id: lesson.lesson_id, seq, writer_id: w.id, cand_id: c.cand_id, chars: text.length, pushed })
+    this.emit('lesson_posted', { lesson_id: lesson.lesson_id, seq, writer_id: w.id, cand_id: c.cand_id, chars: text.length, pushed, ...(corrects ? { corrects } : {}) })
     for (const r of this.lessonWaiters.splice(0)) r()
     if (gated) return { lesson_id: lesson.lesson_id, pushed: false, status: 'pending_verification', header: lesson.header, hint: 'The verifier will check this lesson. If it is verified it is pushed to your teammates. Keep working.' }
     return { lesson_id: lesson.lesson_id, pushed, header: lesson.header }
@@ -844,7 +992,7 @@ export class Run {
     const others = board.filter((l) => l.bseq! > cursor && l.writer_id !== w.id)
     const page = others.slice(0, limit)
     const next = page.length ? page[page.length - 1].bseq! : Math.max(cursor, board.length ? board[board.length - 1].bseq! : cursor)
-    const view = page.map((l) => ({ lesson_id: l.lesson_id, seq: l.bseq, header: l.header, text: l.text, pushed: l.pushed, already_delivered: w.delivered.has(l.lesson_id) }))
+    const view = page.map((l) => ({ lesson_id: l.lesson_id, seq: l.bseq, header: this.headerOf(l), text: l.text, pushed: l.pushed, already_delivered: w.delivered.has(l.lesson_id), ...(l.corrects ? { corrects: l.corrects } : {}) }))
     this.emit('lessons_read', { writer_id: w.id, from_seq: cursor, to_seq: next, count: page.length, chars: page.reduce((n, l) => n + l.text.length, 0), has_own_correct: !!w.best })
     return { lessons: view, next_cursor: next, remaining: others.length - page.length }
   }
@@ -882,6 +1030,7 @@ export class Run {
         this.assigned.set(l.lesson_id, now)
         return {
           lesson: { lesson_id: l.lesson_id, writer_id: l.writer_id, cand_id: l.cand_id, minute: l.minute, text: l.text },
+          ...(l.corrects && this.lessonStore.get(l.corrects) ? { corrects: { lesson_id: l.corrects, writer_id: this.lessonStore.get(l.corrects)!.writer_id, header: this.lessonStore.get(l.corrects)!.header, text: this.lessonStore.get(l.corrects)!.text } } : {}),
           author_checkpoint_dir: path.join(this.candDir(l.cand_id), 'src'),
           author_work_dir: this.workDir(l.writer_id),
           author_notes_path: path.join(this.writerDir(l.writer_id), 'NOTES.md'),
@@ -906,7 +1055,7 @@ export class Run {
     const l = this.lessonStore.get(a.lesson_id)
     if (!l || !this.lessons.includes(l)) throw new HostError('unknown_lesson', `no lesson ${a.lesson_id}`)
     if (l.verdict !== 'pending') throw new HostError('already_decided', `${l.lesson_id} already has the verdict "${l.verdict}"`)
-    if (!['verified', 'unverified', 'refuted', 'withheld'].includes(a.verdict)) throw new ArgError('verdict must be one of verified, unverified, refuted, withheld')
+    if (!['verified', 'partly_verified', 'unverified', 'refuted', 'withheld'].includes(a.verdict)) throw new ArgError('verdict must be one of verified, partly_verified, unverified, refuted, withheld')
     const note = String(a.note ?? '').replace(/\s+/g, ' ').trim()
     if (!note) throw new HostError('note_required', 'Give a one-sentence note saying what you checked and what you found.')
     if (note.length > this.cfg.verifier.note_max_chars) throw new HostError('note_too_long', `The note is limited to ${this.cfg.verifier.note_max_chars} characters. The verifier reports a verdict; it does not rewrite or extend lessons.`)
@@ -914,7 +1063,7 @@ export class Run {
     const verdict = a.verdict as Verdict
     const policy = this.cfg.push.policy
     const visible = verdict !== 'withheld'
-    const pushed = visible && policy !== 'none' && (verdict === 'verified' || policy === 'all')
+    const pushed = visible && policy !== 'none' && (verdict === 'verified' || verdict === 'partly_verified' || policy === 'all')
     const bseq = visible ? this.bseqMax + 1 : null
     const header = verdictHeader(l.writer_id, l.cand_id, verdict, note)
     this.emit('lesson_verdict', { lesson_id: l.lesson_id, writer_id: l.writer_id, verdict, note, pushed, bseq, header, session: this.verifierCurrent, agent_id: a.agent_id ?? null })
@@ -922,11 +1071,15 @@ export class Run {
   }
 
   // ---------- status ----------
-  status(writerId?: string) {
+  status(writerId?: string, deliver = false) {
     this.tick()
     if (writerId) {
       const w = this.writer(writerId)
-      return { run_id: this.id, mode: this.cfg.mode, writer_id: w.id, own_best: w.best, candidates: w.candCount, pending: [...w.pending], budget: this.budgetView(), session: this.sessionView(w), baseline: this.baseline.metric, metric: this.cfg.metric }
+      const out: Record<string, unknown> = { run_id: this.id, mode: this.cfg.mode, writer_id: w.id, own_best: w.best, candidates: w.candCount, pending: [...w.pending], budget: this.budgetView(), session: this.sessionView(w), baseline: this.baseline.metric, metric: this.cfg.metric }
+      // A writer deep in one long step can collect its pushes here without saving a checkpoint. Only after its
+      // first checkpoint, so every writer still commits a first result of its own before it reads the team's.
+      if (deliver && this.cfg.board.enabled && this.state === 'open' && w.candCount > 0) out.pushed_lessons = this.deliver(w, 'status')
+      return out
     }
     const count = (st: string) => [...this.cands.values()].filter((c) => c.status === st).length
     return {
@@ -942,11 +1095,14 @@ export class Run {
       team_best: this.teamBest,
       writers: this.writerIds.map((id) => {
         const w = this.writers.get(id)!
-        return { writer_id: id, best: w.best, candidates: w.candCount, session: w.current, pending: w.pending.size }
+        const wait = this.waitingFor(w)
+        return { writer_id: id, best: w.best, candidates: w.candCount, session: w.current, pending: w.pending.size, pushes_waiting: wait.count, oldest_push_wait_min: wait.oldest_wait_min, ...(wait.count && w.candCount === 0 ? { waiting_because: 'no checkpoint yet: pushes are held until the first one' } : wait.count ? { waiting_because: 'pushes ride on the next checkpoint or status call' } : {}) }
       }),
       evals: { ok: count('ok'), incorrect: count('incorrect'), build_error: count('build_error'), infra_error: count('infra_error'), pending: count('pending'), counted: this.counted },
       lessons: { posted: this.lessons.length, pushed: this.lessons.filter((l) => l.pushed).length, ...(this.agentMode ? { pending: this.lessons.filter((l) => l.verdict === 'pending').length } : {}) },
       queue_length: [...this.queues.values()].reduce((n, q) => n + q.length, 0) + this.running,
+      generation: this.generation,
+      log_damage: this.damage,
     }
   }
 

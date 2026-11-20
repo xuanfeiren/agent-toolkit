@@ -62,11 +62,11 @@ export class Host {
         case 'join':
           return this.run(a).join({ writer_id: str(a, 'writer_id')!, session: num(a, 'session') ?? 0, agent_id: a._harness_agent_id, agent_type: a._harness_agent_type })
         case 'evaluate':
-          return await this.run(a).evaluate({ writer_id: str(a, 'writer_id')!, note: str(a, 'note', false), agent_id: a._harness_agent_id })
+          return await this.run(a).evaluate({ writer_id: str(a, 'writer_id')!, note: str(a, 'note', false), used_lessons: a.used_lessons, agent_id: a._harness_agent_id })
         case 'get_result':
           return await this.run(a).getResult({ writer_id: str(a, 'writer_id')!, cand_id: str(a, 'cand_id')!, wait_s: num(a, 'wait_s'), agent_id: a._harness_agent_id })
         case 'post_lesson':
-          return this.run(a).postLesson({ writer_id: str(a, 'writer_id')!, cand_id: str(a, 'cand_id')!, text: str(a, 'text')!, agent_id: a._harness_agent_id })
+          return this.run(a).postLesson({ writer_id: str(a, 'writer_id')!, cand_id: str(a, 'cand_id')!, text: str(a, 'text')!, corrects: str(a, 'corrects', false), agent_id: a._harness_agent_id })
         case 'read_lessons':
           return this.run(a).readLessons({ writer_id: str(a, 'writer_id')!, cursor: num(a, 'cursor'), limit: num(a, 'limit'), agent_id: a._harness_agent_id })
         case 'status': {
@@ -75,7 +75,7 @@ export class Host {
           const forced = run.writerOfAgent(a._harness_agent_id)
           const wid = str(a, 'writer_id', false)
           if (forced && wid && wid !== forced) throw new HostError('identity_mismatch', `this agent is registered as ${forced}`)
-          return run.status(forced ?? wid)
+          return run.status(forced ?? wid, !!forced)
         }
         case 'confirm': {
           const run = this.run(a)
@@ -127,24 +127,91 @@ export class Host {
     this.runs.set(id, run)
     return run
   }
+  /**
+   * Take ownership of a run directory. Creation of server.lock is atomic (a hard link to a private file, so the
+   * lock appears with its content or not at all): of any number of processes, exactly one gets it. A lock whose
+   * owner is dead is replaced under a second, short-lived mutex, so two processes can never both replace it.
+   */
   private lock(dir: string): void {
     const f = path.join(dir, 'server.lock')
-    try {
-      const cur = readJson<{ pid: number }>(f)
-      if (cur.pid !== process.pid) {
-        let alive = true
-        try {
-          process.kill(cur.pid, 0)
-        } catch (e) {
-          alive = (e as NodeJS.ErrnoException).code === 'EPERM'
-        }
-        if (alive) throw new HostError('run_locked', `run is owned by live process ${cur.pid}`)
+    const me = { pid: process.pid, started: new Date(this.clock.now()).toISOString(), token: crypto.randomBytes(8).toString('hex') }
+    const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+    const alive = (pid: number) => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch (e) {
+        return (e as NodeJS.ErrnoException).code === 'EPERM'
       }
-    } catch (e) {
-      if (e instanceof HostError) throw e
     }
-    writeJson(f, { pid: process.pid, started: new Date(this.clock.now()).toISOString() })
-    this.locks.add(f)
+    const create = (): boolean => {
+      const tmp = `${f}.${process.pid}.${me.token}`
+      fs.writeFileSync(tmp, JSON.stringify(me) + '\n')
+      try {
+        fs.linkSync(tmp, f)
+        return true
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code
+        if (code === 'EEXIST') return false
+        // No hard links on this file system: exclusive create is still atomic, the content follows at once.
+        try {
+          fs.writeFileSync(f, JSON.stringify(me) + '\n', { flag: 'wx' })
+          return true
+        } catch (e2) {
+          if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') return false
+          throw e2
+        }
+      } finally {
+        fs.rmSync(tmp, { force: true })
+      }
+    }
+    const read = (): { pid: number } | null => {
+      try {
+        const cur = readJson<{ pid: number }>(f)
+        return Number.isInteger(cur?.pid) ? cur : null
+      } catch {
+        return null
+      }
+    }
+    let unreadable = 0
+    for (let attempt = 0; attempt < 400; attempt++) {
+      if (create()) {
+        this.locks.add(f)
+        return
+      }
+      const cur = read()
+      if (!fs.existsSync(f)) continue // released between our two looks
+      if (cur && cur.pid === process.pid) {
+        this.locks.add(f)
+        return
+      }
+      if (cur && alive(cur.pid)) throw new HostError('run_locked', `run is owned by live process ${cur.pid}. If that process is not a LessonShare board server (the pid was reused after a crash), delete ${f} and retry.`)
+      // An unreadable lock is either being written right now or is damaged: give its writer a moment first.
+      if (!cur && ++unreadable < 20) {
+        sleep(10)
+        continue
+      }
+      const mutex = f + '.takeover'
+      try {
+        fs.mkdirSync(mutex)
+      } catch {
+        try {
+          if (Date.now() - fs.statSync(mutex).mtimeMs > 10000) fs.rmdirSync(mutex) // its holder died mid-takeover
+        } catch {
+          /* gone already */
+        }
+        sleep(10)
+        continue
+      }
+      try {
+        const again = read()
+        const same = cur ? again?.pid === cur.pid : again == null
+        if (same && fs.existsSync(f) && !(again && alive(again.pid))) fs.rmSync(f, { force: true })
+      } finally {
+        fs.rmdirSync(mutex)
+      }
+    }
+    throw new HostError('run_locked', `could not take ownership of ${dir}: the lock kept changing hands`)
   }
   releaseLocks(): void {
     for (const f of this.locks) {
@@ -162,10 +229,20 @@ export class Host {
     const budget = isObj(a.budget) ? a.budget : {}
     if (a.resume_run_id != null) {
       const run = this.run({ run_id: a.resume_run_id })
+      // The roster of a run is fixed when it is created. Resuming never changes the number of writers.
+      const n = num(a, 'n')
+      if (n != null && n !== run.writerIds.length) throw new HostError('roster_mismatch', `run ${run.id} has ${run.writerIds.length} writers (${run.writerIds[0]}..${run.writerIds[run.writerIds.length - 1]}); it cannot be resumed with n=${n}. Leave n out to resume it as it is.`)
+      const damage = run.logDamage()
+      if (a.recover === true) {
+        // Continue with the deadline the run already has: nothing is added, calling this twice changes nothing.
+        run.tick()
+        if (run.state === 'closed') throw new HostError('run_closed', `run ${run.id} is closed (${run.closedReason}); recover only continues a run that is still open. Pass budget.minutes without "recover" to reopen it with more time.`)
+        return this.initResult(run, [`Run ${run.id} recovered: ${run.minutesLeft()} minute(s) left of its original budget.`, ...damage], true)
+      }
       const minutes = num(budget, 'minutes') ?? run.cfg.budget.minutes
       if (!(minutes > 0)) throw new ArgError('budget.minutes must be positive')
       run.reopen(minutes, num(budget, 'evals') ?? null)
-      return this.initResult(run, [`Run ${run.id} reopened with ${minutes} more minute(s).`], true)
+      return this.initResult(run, [`Run ${run.id} reopened with ${minutes} more minute(s), counted from now.`, ...damage], true)
     }
     const taskPath = str(a, 'task_path', false) ?? '.lessonshare/task.json'
     const mode = (str(a, 'mode', false) ?? 'lessonshare') as Mode
@@ -279,6 +356,8 @@ export class Host {
       verifier: run.verifierOn,
       settings: effectiveSettings(run.cfg),
       session_base: resumed ? run.maxSession() + 1 : 0,
+      generation: run.generation,
+      minutes_left: run.minutesLeft(),
       resumed,
       config: run.cfg,
       warnings,

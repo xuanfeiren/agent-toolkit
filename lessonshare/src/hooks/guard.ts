@@ -4,6 +4,7 @@
 // Runs on every file tool call of the session, so it uses Node built-ins only and exits early when not concerned.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { appendLineSync } from '../core/util'
 
 const WRITER_TYPE = /^lessonshare[:-]writer/
 const VERIFIER_TYPE = /^lessonshare[:-]verifier/
@@ -77,10 +78,7 @@ function main(raw: string) {
   const deny = (why: string, p: string | null): never => {
     try {
       const now = Date.now()
-      fs.appendFileSync(
-        path.join(map.run_dir, 'events.jsonl'),
-        JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'guard_denied', agent_id: agentId, writer_id: map.writer_id, tool, path: p }) + '\n',
-      )
+      appendLineSync(path.join(map.run_dir, 'events.jsonl'), { t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'guard_denied', agent_id: agentId, writer_id: map.writer_id, tool, path: p }, false)
     } catch {
       /* the audit record is best effort */
     }
@@ -136,7 +134,7 @@ function keepWorking(inp: any): never {
   const now = Date.now()
   const left = map.start_ms && cfg.budget?.minutes ? Math.round((cfg.budget.minutes - (now - map.start_ms) / 60000) * 10) / 10 : null
   try {
-    fs.appendFileSync(path.join(map.run_dir, 'events.jsonl'), JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'return_blocked', agent_id: agentId, writer_id: map.writer_id, session: map.session, count: n + 1 }) + '\n')
+    appendLineSync(path.join(map.run_dir, 'events.jsonl'), { t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'return_blocked', agent_id: agentId, writer_id: map.writer_id, session: map.session, count: n + 1 }, false)
   } catch {
     /* best effort */
   }
@@ -149,7 +147,7 @@ function verifierDecision(inp: any, map: any, tool: string, isRead: boolean, tar
   const deny = (why: string, p: string | null): never => {
     try {
       const now = Date.now()
-      fs.appendFileSync(path.join(map.run_dir, 'events.jsonl'), JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'guard_denied', agent_id: agentId, writer_id: null, role: 'verifier', tool, path: p }) + '\n')
+      appendLineSync(path.join(map.run_dir, 'events.jsonl'), { t: new Date(now).toISOString(), minute: map.start_ms ? Math.round(((now - map.start_ms) / 60000) * 100) / 100 : 0, type: 'guard_denied', agent_id: agentId, writer_id: null, role: 'verifier', tool, path: p }, false)
     } catch {
       /* best effort */
     }

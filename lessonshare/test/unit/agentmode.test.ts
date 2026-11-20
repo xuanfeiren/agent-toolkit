@@ -184,26 +184,27 @@ describe('runs without an evaluator (verify.kind = agent)', () => {
     expect((await call2('read_lessons', { writer_id: 'w02' })).lessons.map((l: any) => [l.lesson_id, l.header])).toEqual([['L0002', '[w01 · c0001 · verified by verifier: ok]']])
     expect((await call2('next_lesson', { session: 0, ...V })).lesson.lesson_id).toBe('L0001')
   })
-  it('confirm freezes every work directory, asks a judge for a ranking and reports the judged winner', async () => {
+  it('confirm freezes every last checkpoint, asks a judge for a ranking and reports the judged winner', async () => {
     const { run, call, checkpoint, answer } = await openRun()
     await checkpoint('w01', 'LENGTH: 4\nSEQUENCE: 1, 2, 4, 8')
-    answer('w01', 'LENGTH: 5\nSEQUENCE: 1, 2, 4, 8, 16') // newer than the last checkpoint
+    answer('w01', 'LENGTH: 5\nSEQUENCE: 1, 2, 4, 8, 16') // edited after the last checkpoint: not part of the result
     answer('w02', 'LENGTH: 2\nSEQUENCE: 3, 6')
     const a = await call('post_lesson', { writer_id: 'w01', cand_id: 'c0001', text: 'Doubling keeps the chain valid.' })
     await call('verdict', { lesson_id: a.lesson_id, verdict: 'verified', note: 'ok', ...V })
     const ask = await call('confirm', { ...V })
     expect(ask).toMatchObject({ needs_ranking: true, goal: 'Find the longest chain.', criteria: 'Valid first, then longer.' })
     expect(ask.finals.map((f: any) => [f.writer_id, f.files])).toEqual([['w01', ['answer.md']], ['w02', ['answer.md']], ['w03', []]])
-    expect(fs.readFileSync(path.join(ask.finals[0].final_dir, 'answer.md'), 'utf8')).toMatch(/16/)
+    expect(fs.readFileSync(path.join(ask.finals[0].final_dir, 'answer.md'), 'utf8')).toBe('LENGTH: 4\nSEQUENCE: 1, 2, 4, 8')
+    expect(ask.finals.map((f: any) => f.source)).toEqual(['c0001', 'work_dir', 'work_dir']) // w02 never saved a checkpoint
     expect((await checkpoint('w03', 'late')).error).toBe('run_closed')
     await expect(call('confirm', { ranking: [{ writer_id: 'w09', score: 1 }], ...V })).rejects.toThrow(/unknown writer_id/)
-    const rep = await call('confirm', { ranking: [{ writer_id: 'w02', score: 3, reason: 'valid but short' }, { writer_id: 'w01', score: 8, reason: 'valid, five terms' }, { writer_id: 'w03', score: 0, reason: 'empty' }], ...V })
+    const rep = await call('confirm', { ranking: [{ writer_id: 'w02', score: 3, reason: 'valid but short' }, { writer_id: 'w01', score: 8, reason: 'valid, five terms' }, { writer_id: 'w03', score: 0, meets_bar: false, reason: 'empty' }], ...V })
     expect(rep.winner).toMatchObject({ writer_id: 'w01', judged: true, score: 8, reason: 'valid, five terms' })
     expect(rep.ranking.map((r: any) => r.writer_id)).toEqual(['w01', 'w02', 'w03'])
     expect(rep.diagnostics.verification).toMatchObject({ kind: 'agent', verdicts: { verified: 1 }, pending: 0 })
     expect(rep.team.evals.recorded).toBe(1)
     expect(rep.warnings.join(' ')).toMatch(/chosen by a judge agent/)
-    expect(fs.readFileSync(path.join(run.run_dir, 'winner', 'answer.md'), 'utf8')).toMatch(/16/)
+    expect(fs.readFileSync(path.join(run.run_dir, 'winner', 'answer.md'), 'utf8')).toMatch(/8$/)
     const md = fs.readFileSync(path.join(run.run_dir, 'report.md'), 'utf8')
     expect(md).toMatch(/Winner: w01\*\* · chosen by the judge agent, score 8\/10/)
     expect(md).toMatch(/Verifier verdicts: 1 verified/)

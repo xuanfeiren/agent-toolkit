@@ -10,6 +10,7 @@ export const meta = {
 //  - agent() returns null when the agent is skipped or dies
 //  - no Date.now()/Math.random()/I/O here: the host (MCP server "board") owns clock, budget and all protocol logic
 //  - resume replays agent() calls in start order, so prompts depend only on run_id, run_dir, writer_id, session
+//  - the writers of a run are the ones the host returns from init_run; resuming a run never changes them
 
 // args must be structured data; a JSON string is accepted too, anything else is an error (never silently fall back to N=8 / 120 min)
 let input = args
@@ -19,11 +20,14 @@ if (typeof input === 'string' && input.trim()) {
 if (input != null && (typeof input !== 'object' || Array.isArray(input))) throw new Error('args must be a JSON object')
 const cfg = {
   task: '.lessonshare/task.json', mode: 'lessonshare', n: 8, minutes: 120, evals: null,
-  max_sessions: 12, settings: {}, overrides: {}, resume_run_id: null, agent_type: 'lessonshare:writer',
+  max_sessions: 12, settings: {}, overrides: {}, resume_run_id: null, recover: false, agent_type: 'lessonshare:writer',
   verifier_type: 'lessonshare:verifier', verifier_max_sessions: 20,
   ...(input || {}),
 }
 const T = 'mcp__plugin_lessonshare_board__'
+// n given together with resume_run_id is passed on, so the host can refuse a roster that does not match the run
+const nGiven = input != null && input.n != null
+if (cfg.recover && !cfg.resume_run_id) throw new Error('recover needs resume_run_id')
 if (!Number.isInteger(cfg.n) || cfg.n < 1) throw new Error('n must be a positive integer')
 if (cfg.n * cfg.max_sessions + cfg.verifier_max_sessions + 2 > 1000) throw new Error('n * max_sessions + verifier sessions + 2 exceeds the 1,000-agent cap of one workflow run')
 if (cfg.n > 16) log('n > 16: raise CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS or the extra lanes will queue')
@@ -34,6 +38,7 @@ const INIT_SCHEMA = {
   properties: {
     run_id: { type: 'string' }, run_dir: { type: 'string' },
     writers: { type: 'array', items: { type: 'string' } },
+    generation: { type: 'integer' }, minutes_left: { type: 'number' },
     baseline: { type: 'object' }, session_base: { type: 'integer' }, verify_kind: { type: 'string' }, verifier: { type: 'boolean' }, settings: { type: 'object' },
     warnings: { type: 'array', items: { type: 'string' } }, error: { type: 'string' },
   },
@@ -61,13 +66,13 @@ const REPORT_SCHEMA = {
 
 function initPrompt(c) {
   const input = c.resume_run_id
-    ? { resume_run_id: c.resume_run_id, budget: { minutes: c.minutes, evals: c.evals } }
+    ? { resume_run_id: c.resume_run_id, ...(c.recover ? { recover: true } : { budget: { minutes: c.minutes, evals: c.evals } }), ...(nGiven ? { n: c.n } : {}) }
     : { task_path: c.task, mode: c.mode, n: c.n, budget: { minutes: c.minutes, evals: c.evals }, settings: c.settings, overrides: c.overrides }
   return `Call the tool ${T}init_run exactly once with exactly these arguments:
 
 ${JSON.stringify(input)}
 
-Then return its result as your structured output: copy run_id, run_dir, writers, baseline, verify_kind, verifier, settings, session_base and warnings unchanged (leave out the large "config" field).
+Then return its result as your structured output: copy run_id, run_dir, writers, generation, minutes_left, baseline, verify_kind, verifier, settings, session_base and warnings unchanged (leave out the large "config" field).
 If the tool returns an object with "error", or the call fails or is denied, return {"error": "<the error code and message>"} instead.
 Do not call any other tool. Do not retry. Do not read or edit files.`
 }
@@ -133,7 +138,12 @@ const verifierLane = !verifierOn ? null : (async () => {
   }
   return { sessions, verdicts }
 })().catch(() => null)
-const ids = Array.from({ length: cfg.n }, (_, i) => `w${String(i + 1).padStart(2, '0')}`)
+// The roster is the host's, not this script's default: a resumed five-writer run gets five lanes, whatever n says here.
+if (!Array.isArray(run.writers) || !run.writers.length || !run.writers.every(w => typeof w === 'string' && /^w\d+$/.test(w))) throw new Error('init returned no writer list; refusing to guess the roster')
+const ids = run.writers
+if (!cfg.resume_run_id && ids.length !== cfg.n) throw new Error(`init created ${ids.length} writers but n is ${cfg.n}`)
+if (ids.length * cfg.max_sessions + cfg.verifier_max_sessions + 2 > 1000) throw new Error('writers * max_sessions + verifier sessions + 2 exceeds the 1,000-agent cap of one workflow run')
+if (cfg.resume_run_id) log(`resumed with ${ids.length} writers (${ids[0]}..${ids[ids.length - 1]}), round ${(run.generation || 0) + 1}${run.minutes_left != null ? `, ${run.minutes_left} min left` : ''}`)
 const lanes = await parallel(ids.map(id => async () => {
   let last = null, misses = 0, sessions = 0
   for (let k = 0; k < cfg.max_sessions; k++) {

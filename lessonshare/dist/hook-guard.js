@@ -23,8 +23,29 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // src/hooks/guard.ts
-var fs = __toESM(require("node:fs"));
+var fs2 = __toESM(require("node:fs"));
 var path = __toESM(require("node:path"));
+
+// src/core/util.ts
+var fs = __toESM(require("node:fs"));
+function appendLineSync(file, obj, sync = true) {
+  const fd = fs.openSync(file, "a+");
+  try {
+    const size = fs.fstatSync(fd).size;
+    let lead = "";
+    if (size > 0) {
+      const last = Buffer.alloc(1);
+      fs.readSync(fd, last, 0, 1, size - 1);
+      if (last[0] !== 10) lead = "\n";
+    }
+    fs.writeSync(fd, lead + JSON.stringify(obj) + "\n");
+    if (sync) fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+// src/hooks/guard.ts
 var WRITER_TYPE = /^lessonshare[:-]writer/;
 var VERIFIER_TYPE = /^lessonshare[:-]verifier/;
 var READ_TOOLS = /* @__PURE__ */ new Set(["Read", "Grep", "Glob"]);
@@ -34,7 +55,7 @@ function realResolve(p) {
   const tail = [];
   for (; ; ) {
     try {
-      return path.join(fs.realpathSync(cur), ...tail);
+      return path.join(fs2.realpathSync(cur), ...tail);
     } catch {
       const parent = path.dirname(cur);
       if (parent === cur) return path.resolve(p);
@@ -57,16 +78,16 @@ function findMapping(projectDir, agentId) {
   let bestM = -1;
   let names = [];
   try {
-    names = fs.readdirSync(runs);
+    names = fs2.readdirSync(runs);
   } catch {
     return null;
   }
   for (const r of names) {
     const f = path.join(runs, r, "agents", agentId + ".json");
     try {
-      const st = fs.statSync(f);
+      const st = fs2.statSync(f);
       if (st.mtimeMs > bestM) {
-        best = JSON.parse(fs.readFileSync(f, "utf8"));
+        best = JSON.parse(fs2.readFileSync(f, "utf8"));
         bestM = st.mtimeMs;
       }
     } catch {
@@ -93,10 +114,7 @@ function main(raw2) {
   const deny = (why, p) => {
     try {
       const now = Date.now();
-      fs.appendFileSync(
-        path.join(map.run_dir, "events.jsonl"),
-        JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round((now - map.start_ms) / 6e4 * 100) / 100 : 0, type: "guard_denied", agent_id: agentId, writer_id: map.writer_id, tool, path: p }) + "\n"
-      );
+      appendLineSync(path.join(map.run_dir, "events.jsonl"), { t: new Date(now).toISOString(), minute: map.start_ms ? Math.round((now - map.start_ms) / 6e4 * 100) / 100 : 0, type: "guard_denied", agent_id: agentId, writer_id: map.writer_id, tool, path: p }, false);
     } catch {
     }
     return decide("deny", `LessonShare: ${why} ${allowedText}`);
@@ -117,13 +135,13 @@ function keepWorking(inp) {
   const projectDir = process.env.CLAUDE_PROJECT_DIR || inp.cwd || process.cwd();
   const map = /^[A-Za-z0-9_.-]+$/.test(agentId) ? findMapping(projectDir, agentId) : null;
   if (!map || map.role === "verifier") process.exit(0);
-  const cfg = JSON.parse(fs.readFileSync(path.join(map.run_dir, "run.json"), "utf8")).config;
+  const cfg = JSON.parse(fs2.readFileSync(path.join(map.run_dir, "run.json"), "utf8")).config;
   const max = cfg.session?.keep_working ?? 0;
   if (!(max > 0)) process.exit(0);
   let open = true;
   let used = 0;
   let later = false;
-  for (const line of fs.readFileSync(path.join(map.run_dir, "events.jsonl"), "utf8").split("\n")) {
+  for (const line of fs2.readFileSync(path.join(map.run_dir, "events.jsonl"), "utf8").split("\n")) {
     if (!line.includes('"type":"run_') && !line.includes(map.writer_id)) continue;
     let e;
     try {
@@ -140,15 +158,15 @@ function keepWorking(inp) {
   const counter = path.join(map.run_dir, "agents", agentId + ".returns");
   let n = 0;
   try {
-    n = Number(fs.readFileSync(counter, "utf8")) || 0;
+    n = Number(fs2.readFileSync(counter, "utf8")) || 0;
   } catch {
   }
   if (n >= max) process.exit(0);
-  fs.writeFileSync(counter, String(n + 1));
+  fs2.writeFileSync(counter, String(n + 1));
   const now = Date.now();
   const left = map.start_ms && cfg.budget?.minutes ? Math.round((cfg.budget.minutes - (now - map.start_ms) / 6e4) * 10) / 10 : null;
   try {
-    fs.appendFileSync(path.join(map.run_dir, "events.jsonl"), JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round((now - map.start_ms) / 6e4 * 100) / 100 : 0, type: "return_blocked", agent_id: agentId, writer_id: map.writer_id, session: map.session, count: n + 1 }) + "\n");
+    appendLineSync(path.join(map.run_dir, "events.jsonl"), { t: new Date(now).toISOString(), minute: map.start_ms ? Math.round((now - map.start_ms) / 6e4 * 100) / 100 : 0, type: "return_blocked", agent_id: agentId, writer_id: map.writer_id, session: map.session, count: n + 1 }, false);
   } catch {
   }
   return decide("deny", `LessonShare: the run is still open${left != null && left > 0 ? ` (about ${left} minutes left)` : ""} and your session has ${cfg.session.eval_quota - used} checkpoints left. Do not return yet. Keep working in this session: try to beat your current result, try to prove or disprove that it is the best possible, test a teammate's lesson on your own work, and record a checkpoint for each step. Return only when a tool result says budget.run_state is "closed" or session.must_hand_off is true.`);
@@ -158,7 +176,7 @@ function verifierDecision(inp, map, tool, isRead, target, agentId, projectDir) {
   const deny = (why, p) => {
     try {
       const now = Date.now();
-      fs.appendFileSync(path.join(map.run_dir, "events.jsonl"), JSON.stringify({ t: new Date(now).toISOString(), minute: map.start_ms ? Math.round((now - map.start_ms) / 6e4 * 100) / 100 : 0, type: "guard_denied", agent_id: agentId, writer_id: null, role: "verifier", tool, path: p }) + "\n");
+      appendLineSync(path.join(map.run_dir, "events.jsonl"), { t: new Date(now).toISOString(), minute: map.start_ms ? Math.round((now - map.start_ms) / 6e4 * 100) / 100 : 0, type: "guard_denied", agent_id: agentId, writer_id: null, role: "verifier", tool, path: p }, false);
     } catch {
     }
     return decide("deny", `LessonShare: ${why} ${scope}`);

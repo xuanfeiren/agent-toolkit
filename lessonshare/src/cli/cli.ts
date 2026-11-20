@@ -76,7 +76,7 @@ async function cmdBoard(args: string[]) {
       const header = v ? v.header : l.header
       const pushed = v ? v.pushed : l.pushed
       const tag = v?.verdict === 'withheld' ? 'HIDDEN' : pushed ? 'PUSHED' : 'board '
-      console.log(`${l.lesson_id}  min ${l.minute}  ${tag}  ${header}\n${l.text}\n`)
+      console.log(`${l.lesson_id}  min ${l.minute}  ${tag}  ${header}${l.corrects ? `  (corrects ${l.corrects})` : ''}\n${l.text}\n`)
       done.add(l.lesson_id)
       shown++
     }

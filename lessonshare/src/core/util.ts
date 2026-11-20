@@ -122,32 +122,78 @@ export function copyDir(src: string, dst: string): void {
   writeBlobs(dst, readBlobs(src, listFiles(src)))
 }
 
-export function appendLineSync(file: string, obj: unknown): void {
-  const fd = fs.openSync(file, 'a')
+/**
+ * Append one JSON line. If the file does not end with a newline (a writer died mid-line), a newline goes first,
+ * so the new record never fuses with the torn one. Safe for every writer of a log, in any process.
+ */
+export function appendLineSync(file: string, obj: unknown, sync = true): void {
+  const fd = fs.openSync(file, 'a+')
   try {
-    fs.writeSync(fd, JSON.stringify(obj) + '\n')
-    fs.fsyncSync(fd)
+    const size = fs.fstatSync(fd).size
+    let lead = ''
+    if (size > 0) {
+      const last = Buffer.alloc(1)
+      fs.readSync(fd, last, 0, 1, size - 1)
+      if (last[0] !== 0x0a) lead = '\n'
+    }
+    fs.writeSync(fd, lead + JSON.stringify(obj) + '\n')
+    if (sync) fs.fsyncSync(fd)
   } finally {
     fs.closeSync(fd)
   }
 }
-export function readJsonl<T = any>(file: string): T[] {
+export function readJsonlChecked<T = any>(file: string): { rows: T[]; bad: number } {
   let txt: string
   try {
     txt = fs.readFileSync(file, 'utf8')
   } catch {
-    return []
+    return { rows: [], bad: 0 }
   }
-  const out: T[] = []
+  const rows: T[] = []
+  let bad = 0
   for (const line of txt.split('\n')) {
     if (!line.trim()) continue
     try {
-      out.push(JSON.parse(line))
+      rows.push(JSON.parse(line))
     } catch {
-      /* torn last line after a crash: ignore */
+      bad++
     }
   }
-  return out
+  return { rows, bad }
+}
+export function readJsonl<T = any>(file: string): T[] {
+  return readJsonlChecked<T>(file).rows
+}
+/**
+ * Repair the end of a JSON-lines log. Call only while holding the run's lock. A last line without a newline is
+ * either a complete record (the newline is added) or a torn one: the torn bytes move to `<file>.corrupt` and the
+ * log is cut back to its last complete line. Damaged lines in the middle are left in place and counted.
+ */
+export function repairJsonl(file: string): { torn_bytes: number; bad_lines: number } {
+  let buf: Buffer
+  try {
+    buf = fs.readFileSync(file)
+  } catch {
+    return { torn_bytes: 0, bad_lines: 0 }
+  }
+  let torn = 0
+  if (buf.length && buf[buf.length - 1] !== 0x0a) {
+    const cut = buf.lastIndexOf(0x0a) + 1
+    const tail = buf.subarray(cut)
+    let whole = true
+    try {
+      JSON.parse(tail.toString('utf8'))
+    } catch {
+      whole = false
+    }
+    if (whole) fs.appendFileSync(file, '\n')
+    else {
+      fs.appendFileSync(file + '.corrupt', JSON.stringify({ t: new Date().toISOString(), offset: cut, bytes: tail.length, base64: tail.toString('base64') }) + '\n')
+      fs.truncateSync(file, cut)
+      torn = tail.length
+    }
+  }
+  return { torn_bytes: torn, bad_lines: readJsonlChecked(file).bad }
 }
 export function writeJson(file: string, obj: unknown): void {
   const tmp = file + '.tmp' + process.pid

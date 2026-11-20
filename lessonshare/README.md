@@ -101,7 +101,9 @@ file; `overrides` (raw configuration keys) win over both.
 | `push_batch` | 5 | At most this many lessons are delivered with one result. |
 | `session_checkpoints` | 200 without an evaluator, 25 with | Checkpoints or evaluations before a writer hands off to a fresh session. |
 | `keep_working` | 8 | How many times a writer that tries to return while the run is open is sent back to work. 0 lets writers end sessions freely. |
-| `read_after_own_result` | `false`, `true` | Evaluator runs: the board unlocks for a writer only after its own first correct result. |
+| `verified_only` | `true` | One switch for the strict policy: `push: verified` and `board: verified` together. |
+| `keep_rejected` | `false`, `true` | Keep the text of rejected lessons in `rejected.jsonl` for auditing the filter. |
+| `read_after_own_result` | `false`, `true` | Evaluator runs only: the board unlocks for a writer only after its own first correct result. Refused for tasks without an evaluator, where pushes already wait for a writer's first checkpoint. |
 
 ```json
 { "task": ".lessonshare/task.json", "n": 8, "minutes": 60, "settings": { "visibility": "shared", "push": "all", "lesson_chars": 800 } }
@@ -128,16 +130,27 @@ Then describe the task:
 The skill writes `.lessonshare/task.json` (goal, criteria, which files are the result), shows it to you, and
 starts the team after you confirm. The same task ships as `examples/toy-open/`. What happens:
 
-- Each writer keeps its current best result in its own `work/` directory and calls `evaluate` to record a
-  **checkpoint** whenever the result moves forward.
+- Each writer keeps its current best result in its own `work/` directory and calls `evaluate` to save a
+  **checkpoint** whenever the result moves forward. A checkpoint is a saved version: the host executes and tests
+  nothing, and the result of that call says so (`execution_performed: false`). A writer's result is its last
+  checkpoint; edits it did not checkpoint before the run closed are not part of it.
 - A writer posts a lesson attached to a checkpoint. The host rejects it if it is too long, contains code, or
   copies text from the author's own result (`contains_solution`).
 - The **verifier** takes each lesson, reads the author's checkpoint, checks the claim itself and records one
-  verdict with a one-sentence note: `verified` (pushed to everyone with the next checkpoint result),
-  `unverified` or `refuted` (on the board with that label, not pushed), or `withheld` (it hands over the result
-  instead of an insight: hidden from everyone). Until the verdict a lesson is invisible.
-- At the end every work directory is frozen and a judge ranks them against your criteria. The report shows the
-  ranking with reasons. The winner is a judgment, not a measurement: check it.
+  verdict with a one-sentence note: `verified` (nothing in the lesson needs a correction; pushed to everyone
+  with the next checkpoint result), `partly_verified` (the central claim holds but a stated detail is wrong or
+  unchecked; pushed with the correction in its header), `unverified` or `refuted` (on the board with that label,
+  not pushed), or `withheld` (it hands over the result instead of an insight: hidden from everyone). Until the
+  verdict a lesson is invisible. A verdict is the verifier agent's judgment, not a measurement.
+- A lesson can **correct** an earlier one (`corrects: "L0007"` on `post_lesson`; the author's own lesson or one
+  the writer received). Once it is verified it is delivered ahead of the backlog to everyone who holds the
+  original, and the original carries "CORRECTED BY L0012" for later readers. Verdicts themselves never change.
+- A writer names the teammates' lessons a checkpoint builds on (`used_lessons` on `evaluate`). The report counts
+  these declared uses separately from deliveries: a delivery says a lesson was handed over, not that it was used.
+- At the end every writer's last checkpoint is frozen and a judge ranks them against your criteria: one row per
+  writer, score 0 to 10, `meets_bar`, and a reason. The host refuses a ranking that misses or repeats a writer or
+  has a score out of range. The winner is the best result that meets the bar; if none does, the report says
+  **no winner** and names the highest-ranked result. The ranking is a judgment, not a measurement: check it.
 
 The verifier only gives verdicts. It does not rewrite, merge or rank lessons, does not solve the task and
 cannot tell writers what to do.
@@ -180,8 +193,15 @@ Without the skill, start the workflow directly and pass the args as structured d
 /lessonshare:discover {"task": ".lessonshare/task.json", "mode": "lessonshare", "n": 3, "minutes": 15}
 ```
 
-Workflow args: `task`, `mode`, `n` (8), `minutes` (120), `evals` (none), `max_sessions` (12), `overrides` ({}),
-`resume_run_id`.
+Workflow args: `task`, `mode`, `n` (8), `minutes` (120), `evals` (none), `max_sessions` (12), `settings` ({}),
+`overrides` ({}), `resume_run_id`, `recover`.
+
+Continuing a run (the writers are always the ones the run was created with; leave `n` out):
+
+| Args | What it does |
+|---|---|
+| `{"resume_run_id": "<id>", "recover": true}` | Continue a run that is still open, with the deadline it already has. Adds no time and can be repeated: use it after a crash or a restart. Refused when the run is closed. |
+| `{"resume_run_id": "<id>", "minutes": 30}` | Reopen the run for 30 more minutes, counted from now. This starts a new **result round**: finals are frozen again as `final-<writer>-g<round>`, the earlier report stays as `report-g<round>.md`, and the new report is bound to the new finals by content hash. |
 
 ## Task file and evaluation contract
 
@@ -286,7 +306,11 @@ with `lessonshare:writer` or `lessonshare-writer`, but it cannot confine Bash; a
 ```
 
 The board server can be restarted mid-run (crash, `/reload-plugins`, resumed workflow): it rebuilds its state
-from `events.jsonl` and re-queues evaluations that never produced a result.
+from `events.jsonl` and re-queues evaluations that never produced a result. One process owns a run at a time:
+`server.lock` is created atomically, so of several processes that load a run at once exactly one succeeds and the
+others get `run_locked`; a lock left by a dead process is taken over. If the last record of a log was cut off by
+a crash, the torn bytes are moved to `events.jsonl.corrupt` before anything new is written, the repair is
+recorded (`log_repaired`), and the next start reports it as a warning.
 
 ## Troubleshooting
 
@@ -298,7 +322,11 @@ from `events.jsonl` and re-queues evaluations that never produced a result.
 | Headless start is refused | Allow `Workflow` (and `Skill(lessonshare:discover)` when invoked as a slash command) |
 | Only some lanes are active | Workflows run `min(16, CPUs − 2)` agents at once. Start Claude Code with `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS=<N>` |
 | Run closed while the workflow was paused | The time budget is wall-clock. Start again with `"resume_run_id": "<run_id>", "minutes": <more>` |
-| `run_locked` | Another live process owns the run (a second Claude session or `lessonshare call`). Close it |
+| `run_locked` | Another live process owns the run (a second Claude session or `lessonshare call`). Close it. If no such process exists and the pid was reused after a crash, delete `server.lock` in the run directory |
+| `roster_mismatch` on resume | `n` was passed with `resume_run_id` and differs from the run's writers. Leave `n` out |
+| Judge fails with `ranking: ...` | The host checks the ranking: every writer once, score 0 to 10, a reason. The judge is told what to fix and calls again |
+| Report says the run closed N minutes before its deadline | Every writer lane ended early (session limit `max_sessions`, or agents stopped). The time budget is an upper limit, not a guaranteed working time |
+| Pushed lessons "never delivered" in the report | Pushes ride on the recipient's next checkpoint or `status` call, and wait for its first checkpoint. `status` (lead view) shows `pushes_waiting`, the longest wait and the reason per writer |
 | Warning: noise ≥ `min_gain` | Noise would be pushed as verified gains. Raise `metric.min_gain` or take a median inside the evaluator |
 | Report says `isolation: unenforced` | Hooks did not stamp writer sessions. Check that the plugin's hooks are loaded (`/hooks`) |
 | Writers get `PreToolUse ... hook error: LessonShare: ...` | The guard denied a path outside the writer's workspace. Expected for stray reads; counted as `guard_denied` |
@@ -306,7 +334,7 @@ from `events.jsonl` and re-queues evaluations that never produced a result.
 | Long headless (`claude -p`) runs die after 10 minutes | Headless mode stops background workflows 10 minutes after the last turn. Set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` |
 | Lessons stay "pending verification" | The verifier is behind or its lane ended. Check `lesson_verdict` events and that N + 1 fits the concurrency cap |
 | `lesson_rejected` with `contains_solution` | The lesson shares a span of ≥ `lesson.max_copy_chars` (default 40) characters with the author's own files. Intended; lower or raise the threshold per task, 0 disables |
-| Many `lesson_rejected` events | Writers tried to post code. Working as intended; if prose is misclassified, adjust `lesson.code_patterns` |
+| Many `lesson_rejected` events | The report breaks rejections down by rule, and each rejection tells its author the rule and the lines or passage that hit it. If prose or mathematics is misclassified, raise `lesson.max_code_lines` or adjust `lesson.code_patterns`. To audit the filter, set `keep_rejected: true`: rejected texts are then kept in `rejected.jsonl` (off by default, since a rejected text may contain a result) |
 
 Logs: `runs/<run_id>/server.log`; evaluator output per candidate in `candidates/<id>/eval.log`.
 

@@ -98,8 +98,8 @@ Map the user's words: "let them see each other" is `visibility: shared`; "push e
 "no pushing, they read the board" is `push: none`; "no verifier" is `verifier: false` with `push: all`;
 "shorter lessons" is `lesson_chars`; "stricter about pasting the answer" is a lower `copy_chars`.
 
-Other args: `overrides` (configuration keys, see `skills/plan/reference.md`), `resume_run_id` (continue a run
-for `minutes` more), `mode` (`independent` for a no-sharing control run). There is one permission prompt, for
+Other args: `overrides` (configuration keys, see `skills/plan/reference.md`), `resume_run_id` (reopen a run
+for `minutes` more; with `"recover": true` instead, continue an open run with the deadline it has; never pass `n` with it), `mode` (`independent` for a no-sharing control run). There is one permission prompt, for
 `init_run`. The workflow runs in the background; do not start it twice. The lesson board opens as a pane
 beside the chat when the run starts (one card per lesson; `/lesson-board` reopens it). In a plain terminal:
 `lessonshare board <run_id> --follow`. The progress list shows one row per writer session: normally N writers
@@ -108,8 +108,13 @@ plus the verifier; a new row appears only when a writer session ends and the nex
 ## 5. Wrap up
 
 When the workflow returns, show: the judge's ranking with reasons, the winner's files (`winner.path`), how
-many lessons were verified, refuted and withheld, and the warnings. Say plainly that the winner was chosen by
-a judge agent against the criteria, so the user should check it. `lessonshare report <run_id>` prints the full
+many lessons were verified, partly verified, refuted and withheld, how many corrections were posted, and the
+warnings. If `no_validated_winner` is true, say that the judge found no result good enough to rely on and name
+the highest-ranked one (`top_ranked`); do not present it as a winner. Say plainly that the ranking and the
+lesson verdicts are judgments by agents, not measurements, and that checkpoints are saved versions the host
+never executed, so the user should check the result. Do not turn the counts into claims they do not support:
+deliveries are not uses, the verified share is not a correctness rate, and "lexical families" counts wording,
+not methods. `lessonshare report <run_id>` prints the full
 report. Copy files out of the winner directory only when the user asks.
 
 ## Never

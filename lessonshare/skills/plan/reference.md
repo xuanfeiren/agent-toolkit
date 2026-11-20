@@ -57,8 +57,11 @@ results are ranked by a judge.
 | `verify.kind` | `agent` or `command`. Default: `command` when `eval.command` is set, otherwise `agent` |
 | `metric` | Not used. `metric.target` and `eval.precheck` are rejected |
 
-`evaluate` records a checkpoint (status `recorded`); checkpoints count toward `session.eval_quota` and
-`budget.evals`. `confirm` freezes each writer's `work/` as `candidates/final-<writer>/` and needs a ranking.
+`evaluate` saves a checkpoint (status `recorded`, `execution_performed: false`); checkpoints count toward
+`session.eval_quota` and `budget.evals`. `confirm` freezes each writer's last checkpoint as
+`candidates/final-<writer>/` (`final-<writer>-g<round>/` after a reopen), each with a `final.json` manifest
+(source checkpoint, content hash), and needs a ranking: one row per writer, `{writer_id, score 0-10, meets_bar,
+reason}`. With `meets_bar` false on every row the report names no winner.
 
 ## Evaluation contract
 

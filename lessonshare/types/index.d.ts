@@ -3,11 +3,15 @@ export type BoardLesson = {
   writer: string
   cand: string
   minute: number
-  /** verified | unverified | refuted | withheld | pending | unchecked | gain | nogain */
+  /** verified | partly_verified | unverified | refuted | withheld | pending | unchecked | gain | nogain */
   status: string
   note: string
   isPushed: boolean
   deliveredTo: string[]
+  /** Lesson this one corrects, or ''. */
+  corrects: string
+  /** Ids of visible lessons that correct this one. */
+  correctedBy: string[]
   text: string
 }
 

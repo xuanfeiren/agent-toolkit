@@ -32,7 +32,7 @@ describe('workflows/discover.js', () => {
       if (opts.label === 'init') {
         expect(prompt).toContain('"mode":"independent"')
         expect(prompt).toContain('"budget":{"minutes":5,"evals":null}')
-        return { run_id: 'r-1', run_dir: '/p/r-1', session_base: 0, warnings: ['small n'], baseline: { metric: 10 } }
+        return { run_id: 'r-1', run_dir: '/p/r-1', writers: ['w01', 'w02', 'w03'], session_base: 0, warnings: ['small n'], baseline: { metric: 10 } }
       }
       if (opts.label === 'confirm') return { run_id: 'r-1', winner: { cand_id: 'c0001' }, baseline: {}, team: {} }
       const id = /writer_id: (w\d+)/.exec(prompt)![1]
@@ -54,8 +54,8 @@ describe('workflows/discover.js', () => {
     const sessions: number[] = []
     const { calls } = await runScript('{"n": 1, "resume_run_id": "r-9", "minutes": 7, "max_sessions": 5}', (prompt, opts) => {
       if (opts.label === 'init') {
-        expect(prompt).toContain('{"resume_run_id":"r-9","budget":{"minutes":7,"evals":null}}')
-        return { run_id: 'r-9', run_dir: '/p/r-9', session_base: 4 }
+        expect(prompt).toContain('{"resume_run_id":"r-9","budget":{"minutes":7,"evals":null},"n":1}')
+        return { run_id: 'r-9', run_dir: '/p/r-9', writers: ['w01'], session_base: 4 }
       }
       if (opts.label === 'confirm') return null
       sessions.push(Number(/session: (\d+)/.exec(prompt)![1]))
@@ -69,7 +69,7 @@ describe('workflows/discover.js', () => {
     let closed = false
     const { result, calls } = await runScript({ n: 2, max_sessions: 2 }, async (prompt, opts) => {
       order.push(opts.label)
-      if (opts.label === 'init') return { run_id: 'r-2', run_dir: '/p/r-2', session_base: 0, verify_kind: 'agent' }
+      if (opts.label === 'init') return { run_id: 'r-2', run_dir: '/p/r-2', writers: ['w01', 'w02'], session_base: 0, verify_kind: 'agent' }
       if (opts.label === 'judge') {
         expect(opts.agentType).toBe('lessonshare:verifier')
         expect(prompt).toBe('task: judge\nrun_id: r-2\nrun_dir: /p/r-2\n\nWork according to your agent instructions. Return the report that the final confirm call gives you, unchanged.')
@@ -93,9 +93,31 @@ describe('workflows/discover.js', () => {
     expect(result).toMatchObject({ winner: { writer_id: 'w02' }, verifier: { sessions: 2, verdicts: 6 } })
   })
   it('command verification starts no verifier lane', async () => {
-    const { calls, result } = await runScript({ n: 1, max_sessions: 1 }, (p, o) => (o.label === 'init' ? { run_id: 'r', run_dir: '/r', verify_kind: 'command' } : o.label === 'confirm' ? { run_id: 'r', winner: null, baseline: {}, team: {} } : null))
+    const { calls, result } = await runScript({ n: 1, max_sessions: 1 }, (p, o) => (o.label === 'init' ? { run_id: 'r', run_dir: '/r', writers: ['w01'], verify_kind: 'command' } : o.label === 'confirm' ? { run_id: 'r', winner: null, baseline: {}, team: {} } : null))
     expect(calls.map((c) => c.opts.label)).toEqual(['init', 'w01 s0', 'confirm'])
     expect(result.verifier).toBeNull()
+  })
+  it('resume takes its lanes from the roster the host returns, never from the default n', async () => {
+    const lanes = new Set<string>()
+    const { calls } = await runScript({ resume_run_id: 'r-5', max_sessions: 1 }, (prompt, opts) => {
+      if (opts.label === 'init') {
+        expect(prompt).toContain('{"resume_run_id":"r-5","budget":{"minutes":120,"evals":null}}') // no n: the run keeps its own
+        return { run_id: 'r-5', run_dir: '/p/r-5', writers: ['w01', 'w02', 'w03', 'w04', 'w05'], session_base: 2, generation: 1, verify_kind: 'command' }
+      }
+      if (opts.label === 'confirm') return { run_id: 'r-5', winner: null, baseline: {}, team: {} }
+      lanes.add(/writer_id: (w\d+)/.exec(prompt)![1])
+      return { writer_id: 'w', session: 2, run_closed: true, evals_this_session: 0, best_metric: null, summary: '' }
+    })
+    expect([...lanes].sort()).toEqual(['w01', 'w02', 'w03', 'w04', 'w05'])
+    expect(calls).toHaveLength(7)
+    // recover keeps the deadline: no budget is sent
+    await runScript({ resume_run_id: 'r-5', recover: true, max_sessions: 1 }, (prompt, opts) => {
+      if (opts.label === 'init') expect(prompt).toContain('{"resume_run_id":"r-5","recover":true}')
+      return opts.label === 'init' ? { run_id: 'r-5', run_dir: '/p/r-5', writers: ['w01'], session_base: 3, verify_kind: 'command' } : null
+    })
+    await expect(runScript({ recover: true }, () => null)).rejects.toThrow(/recover needs resume_run_id/)
+    await expect(runScript({ n: 2 }, (p, o) => (o.label === 'init' ? { run_id: 'r', run_dir: '/r' } : null))).rejects.toThrow(/no writer list/)
+    await expect(runScript({ n: 2 }, (p, o) => (o.label === 'init' ? { run_id: 'r', run_dir: '/r', writers: ['w01'] } : null))).rejects.toThrow(/created 1 writers but n is 2/)
   })
   it('fails fast on bad input and on a failed init', async () => {
     await expect(runScript({ n: 100, max_sessions: 12 }, () => null)).rejects.toThrow(/1,000-agent cap/)
@@ -103,7 +125,7 @@ describe('workflows/discover.js', () => {
     await expect(runScript([3], () => null)).rejects.toThrow(/JSON object/)
     await expect(runScript({ n: 2 }, () => ({ error: 'baseline_infra_error: boom' }))).rejects.toThrow(/init failed: baseline_infra_error/)
     await expect(runScript({ n: 2 }, () => null)).rejects.toThrow(/agent returned null/)
-    const big = await runScript({ n: 20, max_sessions: 1 }, (p, o) => (o.label === 'init' ? { run_id: 'r', run_dir: '/r' } : null))
+    const big = await runScript({ n: 20, max_sessions: 1 }, (p, o) => (o.label === 'init' ? { run_id: 'r', run_dir: '/r', writers: Array.from({ length: 20 }, (_, i) => `w${String(i + 1).padStart(2, '0')}`) } : null))
     expect(big.logs.join('\n')).toMatch(/CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS/)
     expect(big.result).toMatchObject({ error: 'confirm agent returned null', run_id: 'r' })
   })

@@ -185,7 +185,7 @@ describe('lesson validation', () => {
   })
   it('code-looking lines', () => {
     expect(validateLessonText('Memoizing price by name cut cost from 30768 to 14928.\nIt depends on names repeating.', lc)).toBeNull()
-    expect(validateLessonText('I changed this:\nfor (let i = 0; i < n; i++) {\n  total += price(o);\n}', lc)).toBe('looks_like_code')
+    expect(validateLessonText('I changed this:\nfor (let i = 0; i < n; i++) {\n  total += price(o);\n  seen.add(o.name);\n}', lc)).toBe('looks_like_code')
     expect(validateLessonText('def solve(x):\n    return x\nimport os', lc)).toBe('looks_like_code')
     expect(validateLessonText('One line ending with a brace {\nand prose after.', lc)).toBeNull() // 1 < 3
   })
@@ -209,7 +209,8 @@ describe('lesson validation', () => {
     expect((await p('w01', 'c9999', 'nope')).error).toBe('unknown_candidate')
     expect((await p('w01', a.cand_id, 'x'.repeat(2001))).error).toBe('too_long')
     const rej = await p('w01', a.cand_id, '```js\nx\n```')
-    expect(rej).toMatchObject({ error: 'code_block', message: 'Lessons are short prose. State the design insight and its measured effect in words, without code.' })
+    expect(rej).toMatchObject({ error: 'code_block', rule: 'code_block' })
+    expect(rej.message).toMatch(/fenced block/)
     const good = await p('w01', a.cand_id, 'Caching cut the cost by ten percent.')
     expect(good).toMatchObject({ lesson_id: 'L0001', pushed: true, header: '[w01 · c0001 · ok · ms 100 → 90 (10.0% better) · verified gain]' })
     expect((await p('w01', a.cand_id, 'Caching cut the cost by ten percent.')).error).toBe('duplicate')

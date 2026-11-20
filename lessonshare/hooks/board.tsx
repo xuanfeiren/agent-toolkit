@@ -82,9 +82,16 @@ async function load($: any, runsDir: string, runId: string): Promise<BoardRun | 
       note: v ? v.note : l.verdict ? '' : String(l.header ?? '').replace(/^\[|\]$/g, ''),
       isPushed: v ? !!v.pushed : !!l.pushed,
       deliveredTo: delivered.get(l.lesson_id) ?? [],
+      corrects: typeof l.corrects === 'string' ? l.corrects : '',
+      correctedBy: [],
       text: l.text,
     }
   })
+  // a correction counts against its target once it is visible and not itself in doubt
+  for (const c of cards) {
+    if (!c.corrects || ['pending', 'withheld', 'refuted', 'unverified'].includes(c.status)) continue
+    cards.find(x => x.id === c.corrects)?.correctedBy.push(c.id)
+  }
   return { runId, task: file.config?.name ?? '', n: file.config?.n ?? 0, state, minute, settings: settingsLine(file.config ?? {}), rejected, rejectedForCopy, winner, lessons: cards }
 }
 
@@ -110,6 +117,7 @@ async function newestRun($: any): Promise<{ runsDir: string; runId: string } | n
 const UNCHECKED = { mark: '·', label: 'not checked', color: 'inactive' }
 const STATUS: Record<string, { mark: string; label: string; color: string }> = {
   verified: { mark: '✔', label: 'verified', color: 'success' },
+  partly_verified: { mark: '◐', label: 'partly verified, read the correction', color: 'warning' },
   gain: { mark: '✔', label: 'verified gain', color: 'success' },
   unverified: { mark: '?', label: 'not verified', color: 'warning' },
   unchecked: UNCHECKED,
@@ -118,7 +126,7 @@ const STATUS: Record<string, { mark: string; label: string; color: string }> = {
   withheld: { mark: '⊘', label: 'withheld (gives away the result)', color: 'error' },
   pending: { mark: '…', label: 'waiting for the verifier', color: 'inactive' },
 }
-const isVerified = (l: BoardLesson) => l.status === 'verified' || l.status === 'gain'
+const isVerified = (l: BoardLesson) => l.status === 'verified' || l.status === 'partly_verified' || l.status === 'gain'
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -172,7 +180,9 @@ export const register: Register = on => {
     }
     const all = run.lessons
     const counts = {
-      verified: all.filter(isVerified).length,
+      verified: all.filter(l => isVerified(l) && l.status !== 'partly_verified').length,
+      partly: all.filter(l => l.status === 'partly_verified').length,
+      corrections: all.filter(l => l.corrects !== '').length,
       pending: all.filter(l => l.status === 'pending').length,
       pushed: all.filter(l => l.isPushed).length,
       withheld: all.filter(l => l.status === 'withheld').length,
@@ -191,7 +201,9 @@ export const register: Register = on => {
         <Text dimColor>{run.runId}</Text>
         <Text dimColor>{run.settings}</Text>
         <Text>
-          {all.length} lessons · <Text color="success">{counts.verified} verified</Text> · {counts.pushed} pushed · {counts.pending} waiting
+          {all.length} lessons · <Text color="success">{counts.verified} verified</Text>
+          {counts.partly ? ` · ${counts.partly} partly` : ''} · {counts.pushed} pushed · {counts.pending} waiting
+          {counts.corrections ? ` · ${counts.corrections} corrections` : ''}
           {counts.withheld ? ` · ${counts.withheld} withheld` : ''}
           {run.rejected ? ` · ${run.rejected} rejected by the host${run.rejectedForCopy ? ` (${run.rejectedForCopy} pasted the result)` : ''}` : ''}
         </Text>
@@ -216,6 +228,8 @@ export const register: Register = on => {
                 {s.mark} {s.label}
                 {l.status === 'withheld' ? '' : l.isPushed ? (l.deliveredTo.length ? ` · pushed → ${l.deliveredTo.join(', ')}` : ' · pushed, not yet delivered') : ' · on the board, not pushed'}
               </Text>
+              {l.corrects !== '' && <Text color="warning">corrects {l.corrects}</Text>}
+              {l.correctedBy.length > 0 && <Text color="error">corrected by {l.correctedBy.join(', ')}: read that lesson first</Text>}
               {l.note !== '' && <Text dimColor>{l.status === 'gain' || l.status === 'nogain' ? '' : 'verifier: '}{l.note}</Text>}
               <Text>{l.text}</Text>
             </Box>

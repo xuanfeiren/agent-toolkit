@@ -86,8 +86,8 @@ After the yes, start the workflow `lessonshare:discover` with the Workflow tool 
 { "task": ".lessonshare/task.json", "mode": "lessonshare", "n": 8, "minutes": 120, "evals": null, "overrides": {} }
 ```
 
-Other args: `max_sessions` (default 12 writer sessions per lane), `resume_run_id` (continue an existing run for
-`minutes` more; use this when a run's wall-clock budget ran out while the workflow was paused).
+Other args: `max_sessions` (default 12 writer sessions per lane), `resume_run_id` (reopen an existing run for
+`minutes` more; use this when a run's wall-clock budget ran out while the workflow was paused. With `"recover": true` instead of `minutes`, an open run continues with the deadline it has. Never pass `n` with it: the run keeps its writers).
 The workflow runs in the background. Do not start it twice. Tell the user they can watch `/workflows` and
 `lessonshare board <run_id> --follow`.
 
