@@ -22,6 +22,22 @@ Skill directories contain a `SKILL.md`. Copy or link the whole directory into th
 
 Then run `/lessonshare:solve <task>`. From a local checkout, start Claude Code with `claude --plugin-dir /path/to/agent-toolkit/lessonshare` instead. See its [README](lessonshare/README.md).
 
+## Citation
+
+Use of this toolkit or any part of it requires a citation. Please cite:
+
+```bibtex
+@misc{ren2026agenttoolkit,
+  author       = {Ren, Xuanfei},
+  title        = {Agent Toolkit: Skills, Protocols and Plugins for Coding and Research Agents},
+  year         = {2026},
+  howpublished = {\url{https://github.com/xuanfeiren/agent-toolkit}},
+  note         = {Software}
+}
+```
+
+A [`CITATION.cff`](CITATION.cff) file is included, so GitHub also shows this entry under "Cite this repository". Each directory's README repeats it.
+
 ## License
 
 [MIT](LICENSE)

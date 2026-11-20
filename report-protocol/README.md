@@ -22,3 +22,18 @@ Put the file where the agent can read it, then tell the agent:
 To change the rules for every agent, edit the file and ask the agents to re-read it.
 
 Timezone: the English version leaves the zone open; the Chinese version uses US Central (CST).
+
+## Citation
+
+If you use the report protocol in your work, please cite the toolkit (use requires a citation):
+
+```bibtex
+@misc{ren2026agenttoolkit,
+  author       = {Ren, Xuanfei},
+  title        = {Agent Toolkit: Skills, Protocols and Plugins for Coding and Research Agents},
+  year         = {2026},
+  howpublished = {\url{https://github.com/xuanfeiren/agent-toolkit}},
+  note         = {Software}
+}
+```
+

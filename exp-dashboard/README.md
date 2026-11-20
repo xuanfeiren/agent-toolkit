@@ -196,6 +196,21 @@ background processes. Use disposable paths. Automated fixtures do not replace vi
 | `scripts/` | Simulation, regression fixtures, narrative updates, and snapshots |
 | `docs/` | Screenshots and standalone simulated demo |
 
+
+## Citation
+
+If you use `exp-dashboard` in your work, please cite the toolkit (use requires a citation):
+
+```bibtex
+@misc{ren2026agenttoolkit,
+  author       = {Ren, Xuanfei},
+  title        = {Agent Toolkit: Skills, Protocols and Plugins for Coding and Research Agents},
+  year         = {2026},
+  howpublished = {\url{https://github.com/xuanfeiren/agent-toolkit}},
+  note         = {Software}
+}
+```
+
 ## License
 
 [MIT](LICENSE)

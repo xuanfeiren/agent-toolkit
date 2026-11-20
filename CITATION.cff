@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "Use of this toolkit or any part of it requires a citation. Please cite it as below."
+title: "Agent Toolkit: Skills, Protocols and Plugins for Coding and Research Agents"
+type: software
+authors:
+  - family-names: Ren
+    given-names: Xuanfei
+repository-code: "https://github.com/xuanfeiren/agent-toolkit"
+license: MIT
+date-released: 2026-11-20

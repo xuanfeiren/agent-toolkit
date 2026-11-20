@@ -365,3 +365,17 @@ the configuration table are also not from the paper.
 13. **`writer.extra_tools`** is not generated automatically; see "Configuration" for the manual steps.
 14. **Catch-up time** is reported as the median over (jump, other writer) pairs with never-caught pairs
     counted as infinite; when more than half are censored the median is reported as "not reached".
+
+## Citation
+
+If you use `lessonshare` in your work, please cite the toolkit (use requires a citation):
+
+```bibtex
+@misc{ren2026agenttoolkit,
+  author       = {Ren, Xuanfei},
+  title        = {Agent Toolkit: Skills, Protocols and Plugins for Coding and Research Agents},
+  year         = {2026},
+  howpublished = {\url{https://github.com/xuanfeiren/agent-toolkit}},
+  note         = {Software}
+}
+```
